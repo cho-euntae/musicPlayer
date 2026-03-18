@@ -47,6 +47,7 @@ components/
 ## 개발 환경 설정 (최초 1회)
 
 ### 1. 패키지 설치
+
 ```bash
 npm install
 ```
@@ -54,17 +55,21 @@ npm install
 ### 2. Android SDK 환경변수 설정 (최초 1회)
 
 **Mac** - `~/.zshrc` 파일에 추가:
+
 ```bash
 export ANDROID_HOME=$HOME/Library/Android/sdk
 export PATH=$PATH:$ANDROID_HOME/platform-tools
 export PATH=$PATH:$ANDROID_HOME/tools
 ```
+
 저장 후 터미널에서 적용:
+
 ```bash
 source ~/.zshrc
 ```
 
 **Windows** - 시스템 환경변수에 추가:
+
 1. 시스템 속성 → 환경변수
 2. 새로 만들기: `ANDROID_HOME` = `C:\Users\[사용자명]\AppData\Local\Android\Sdk`
 3. PATH에 추가: `%ANDROID_HOME%\platform-tools`
@@ -72,20 +77,25 @@ source ~/.zshrc
 ---
 
 ### 3. Android SDK 경로 설정
+
 `android/local.properties` 파일을 직접 생성해야 합니다. (Git에 포함되지 않음)
 
 **Mac:**
+
 ```
 sdk.dir=/Users/cho-euntae/Library/Android/sdk
 ```
 
 **Windows:**
+
 ```
 sdk.dir=C\:\\Users\\[윈도우 사용자명]\\AppData\\Local\\Android\\Sdk
 ```
+
 > Windows 경로는 `\` 를 `\\`로 작성해야 합니다.
 
 ### 3. 핸드폰 개발자 모드 활성화
+
 1. 설정 → 휴대전화 정보 → **빌드 번호 7번 연속 탭**
 2. "개발자가 되었습니다" 메시지 확인
 3. 설정 → **보안 → 보안 위협 자동 차단 OFF**
@@ -93,11 +103,13 @@ sdk.dir=C\:\\Users\\[윈도우 사용자명]\\AppData\\Local\\Android\\Sdk
 5. **USB 디버깅** ON
 
 ### 4. 핸드폰 연결
+
 1. USB 케이블로 Mac에 연결
 2. 핸드폰 알림바에서 **"파일 전송"** 선택
 3. 핸드폰에 "USB 디버깅 허용?" 팝업 뜨면 **허용**
 
 ### 5. 연결 확인
+
 ```bash
 ~/Library/Android/sdk/platform-tools/adb devices
 # 아래처럼 기기가 표시되면 성공
@@ -109,12 +121,14 @@ sdk.dir=C\:\\Users\\[윈도우 사용자명]\\AppData\\Local\\Android\\Sdk
 ## 실행 방법
 
 ### 최초 실행 (앱 빌드 + 설치)
+
 ```bash
 npx expo run:android --device
 # 빌드에 5~10분 소요
 ```
 
 ### 이후 실행 (앱이 이미 설치된 경우)
+
 ```bash
 npx expo start
 # 핸드폰에서 music-player 앱 실행하면 자동 연결
@@ -122,5 +136,18 @@ npx expo start
 ```
 
 ### 코드 수정 반영
+
 - 파일 저장하면 핫 리로드로 **핸드폰에 자동 반영**
 - 강제 새로고침: 터미널에서 `r` 키 입력
+
+### apk로 뽑아내기
+
+방법 1 - 로컬 빌드 (빠름, 추천)
+Mac에서 직접 빌드:
+
+cd /Users/cho-euntae/Desktop/Dev/vscode_workspace/music-player
+npx expo run:android --variant release
+빌드 완료 후 APK 위치:
+
+android/app/build/outputs/apk/release/app-release.apk
+이 APK 파일을 핸드폰으로 전송해서 설치하면 됩니다.

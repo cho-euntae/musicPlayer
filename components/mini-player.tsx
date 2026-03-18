@@ -2,7 +2,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useCurrentTrack, usePlayerStore } from '@/store/player-store';
-import { useAudioControl } from '@/hooks/use-audio-player';
+import { useAudioControl } from '@/context/audio-player-context';
 
 export function MiniPlayer() {
   const currentTrack = useCurrentTrack();
