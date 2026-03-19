@@ -28,7 +28,6 @@ function safeLockScreen(player: ReturnType<typeof useAudioPlayer>, active: boole
 export function AudioPlayerProvider({ children }: { children: React.ReactNode }) {
   const currentTrack = useCurrentTrack();
   const {
-    isPlaying,
     setIsPlaying,
     setPosition,
     setDuration,
@@ -36,6 +35,8 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     repeatMode,
     addToRecentlyPlayed,
     savePlaybackState,
+    pendingSeekPosition,
+    clearPendingSeekPosition,
   } = usePlayerStore();
 
   const player = useAudioPlayer(currentTrack ? { uri: currentTrack.uri } : null);
@@ -61,10 +62,16 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   }, []);
 
   // 오디오 로드 완료되면 자동 재생 + 락스크린 컨트롤 활성화
+  // usePlayerStore.getState()로 최신 isPlaying을 읽어 stale closure 방지
   useEffect(() => {
     if (!status.isLoaded) return;
 
-    if (isPlaying && !status.playing) {
+    const { isPlaying: latestIsPlaying } = usePlayerStore.getState();
+    if (pendingSeekPosition !== null) {
+      player.seekTo(pendingSeekPosition / 1000);
+      clearPendingSeekPosition();
+    }
+    if (latestIsPlaying && !status.playing) {
       player.play();
     }
     if (currentTrack) {
@@ -73,7 +80,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         artist: currentTrack.artist ?? '알 수 없는 아티스트',
       });
     }
-  }, [status.isLoaded]);
+  }, [status.isLoaded, player, currentTrack, pendingSeekPosition, clearPendingSeekPosition]);
 
   // 진행 시간 / 총 길이 동기화
   useEffect(() => {
@@ -118,12 +125,13 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   useEffect(() => {
     if (!status.playing) return;
     const interval = setInterval(() => {
-      if (status.currentTime) {
-        savePlaybackState(status.currentTime * 1000);
+      const currentTime = player.currentTime;
+      if (currentTime !== undefined) {
+        savePlaybackState(currentTime * 1000);
       }
     }, 5000);
     return () => clearInterval(interval);
-  }, [status.playing, status.currentTime]);
+  }, [status.playing, player, savePlaybackState]);
 
   const togglePlay = useCallback(() => {
     if (status.playing) {

@@ -3,16 +3,18 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AudioPlayerProvider } from '@/context/audio-player-context';
 import { usePlayerStore } from '@/store/player-store';
+import { useMediaLibrary } from '@/hooks/use-media-library';
 
 function AppInitializer() {
-  const { lastQueue, lastTrackIndex, setQueue } = usePlayerStore();
+  useMediaLibrary();
+  const { lastQueue, lastTrackIndex, lastPosition, restoreQueue } = usePlayerStore();
 
   // 앱 시작 시 마지막 재생 큐/곡 복원
   useEffect(() => {
     if (lastQueue.length > 0) {
-      setQueue(lastQueue, lastTrackIndex);
+      restoreQueue(lastQueue, lastTrackIndex, lastPosition);
     }
-  }, []);
+  }, [lastPosition, lastQueue, lastTrackIndex, restoreQueue]);
 
   return null;
 }

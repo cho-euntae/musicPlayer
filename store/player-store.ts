@@ -20,6 +20,9 @@ export interface Playlist {
 }
 
 interface PlayerState {
+  // 전체 라이브러리
+  libraryTracks: Track[];
+
   // 재생 큐
   queue: Track[];
   currentIndex: number;
@@ -46,9 +49,12 @@ interface PlayerState {
   lastQueue: Track[];
   lastTrackIndex: number;
   lastPosition: number;
+  pendingSeekPosition: number | null;
 
   // 재생 액션
+  setLibraryTracks: (tracks: Track[]) => void;
   setQueue: (tracks: Track[], startIndex?: number) => void;
+  restoreQueue: (tracks: Track[], startIndex: number, positionMs: number) => void;
   setCurrentIndex: (index: number) => void;
   setIsPlaying: (playing: boolean) => void;
   setPosition: (position: number) => void;
@@ -66,6 +72,7 @@ interface PlayerState {
 
   // 마지막 재생 상태 저장
   savePlaybackState: (positionMs: number) => void;
+  clearPendingSeekPosition: () => void;
 
   // 플레이리스트 액션
   createPlaylist: (name: string) => string;
@@ -78,6 +85,7 @@ interface PlayerState {
 export const usePlayerStore = create<PlayerState>()(
   persist(
     (set, get) => ({
+      libraryTracks: [],
       queue: [],
       currentIndex: 0,
       isPlaying: false,
@@ -91,11 +99,34 @@ export const usePlayerStore = create<PlayerState>()(
       lastQueue: [],
       lastTrackIndex: 0,
       lastPosition: 0,
+      pendingSeekPosition: null,
+
+      setLibraryTracks: (tracks) => set({ libraryTracks: tracks }),
 
       setQueue: (tracks, startIndex = 0) =>
-        set({ queue: tracks, currentIndex: startIndex, position: 0, lastQueue: tracks, lastTrackIndex: startIndex }),
+        set({
+          queue: tracks,
+          currentIndex: startIndex,
+          position: 0,
+          lastQueue: tracks,
+          lastTrackIndex: startIndex,
+          lastPosition: 0,
+          pendingSeekPosition: null,
+        }),
 
-      setCurrentIndex: (index) => set({ currentIndex: index, position: 0, lastTrackIndex: index }),
+      restoreQueue: (tracks, startIndex, positionMs) =>
+        set({
+          queue: tracks,
+          currentIndex: startIndex,
+          position: positionMs,
+          lastQueue: tracks,
+          lastTrackIndex: startIndex,
+          lastPosition: positionMs,
+          pendingSeekPosition: positionMs,
+        }),
+
+      setCurrentIndex: (index) =>
+        set({ currentIndex: index, position: 0, lastTrackIndex: index, lastPosition: 0 }),
 
       setIsPlaying: (playing) => set({ isPlaying: playing }),
 
@@ -124,17 +155,17 @@ export const usePlayerStore = create<PlayerState>()(
         } else {
           return;
         }
-        set({ currentIndex: nextIndex, position: 0 });
+        set({ currentIndex: nextIndex, position: 0, isPlaying: true, lastTrackIndex: nextIndex, lastPosition: 0 });
       },
 
       playPrev: () => {
         const { queue, currentIndex, position } = get();
         if (queue.length === 0) return;
         if (position > 3000) {
-          set({ position: 0 });
+          set({ position: 0, lastPosition: 0 });
         } else {
           const prevIndex = currentIndex > 0 ? currentIndex - 1 : queue.length - 1;
-          set({ currentIndex: prevIndex, position: 0 });
+          set({ currentIndex: prevIndex, position: 0, lastTrackIndex: prevIndex, lastPosition: 0 });
         }
       },
 
@@ -153,6 +184,8 @@ export const usePlayerStore = create<PlayerState>()(
 
       savePlaybackState: (positionMs) =>
         set((s) => ({ lastPosition: positionMs, lastTrackIndex: s.currentIndex })),
+
+      clearPendingSeekPosition: () => set({ pendingSeekPosition: null }),
 
       createPlaylist: (name) => {
         const id = `playlist_${Date.now()}`;

@@ -1,4 +1,4 @@
-import { Track } from "@/store/player-store";
+import { Track, usePlayerStore } from "@/store/player-store";
 import * as MediaLibrary from "expo-media-library";
 import { useEffect, useState } from "react";
 
@@ -33,6 +33,7 @@ interface UseMediaLibraryResult {
 }
 
 export function useMediaLibrary(): UseMediaLibraryResult {
+  const setLibraryTracks = usePlayerStore((s) => s.setLibraryTracks);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +89,7 @@ export function useMediaLibrary(): UseMediaLibraryResult {
       }));
 
       setTracks(formattedTracks);
+      setLibraryTracks(formattedTracks);
     } catch (e) {
       setError("음악 목록을 불러오는데 실패했습니다.");
     } finally {
@@ -105,7 +107,7 @@ export function useMediaLibrary(): UseMediaLibraryResult {
         await loadTracks();
       }
     })();
-  }, []);
+  }, [setLibraryTracks]);
 
   return {
     tracks,

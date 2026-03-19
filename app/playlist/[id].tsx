@@ -14,20 +14,23 @@ export default function PlaylistDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const currentTrack = useCurrentTrack();
   const {
-    queue, favorites, recentlyPlayed, playlists,
+    libraryTracks, queue, favorites, recentlyPlayed, playlists,
     setQueue, setIsPlaying, removeTrackFromPlaylist, toggleFavorite,
   } = usePlayerStore();
 
   const isCustomPlaylist = !SPECIAL_PLAYLISTS[id];
+  const trackSource = libraryTracks.length > 0 ? libraryTracks : queue;
 
   // 트랙 목록 구성
   const getTracks = (): Track[] => {
     if (id === 'favorites') {
-      return queue.filter((t) => favorites.includes(t.id));
+      return favorites
+        .map((trackId) => trackSource.find((track) => track.id === trackId))
+        .filter(Boolean) as Track[];
     }
     if (id === 'recently-played') {
       return recentlyPlayed
-        .map((tid) => queue.find((t) => t.id === tid))
+        .map((tid) => trackSource.find((track) => track.id === tid))
         .filter(Boolean) as Track[];
     }
     const playlist = playlists.find((p) => p.id === id);
