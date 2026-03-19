@@ -7,8 +7,7 @@ export default function HomeScreen() {
   const currentTrack = useCurrentTrack();
   const { queue, setCurrentIndex, setIsPlaying } = usePlayerStore();
 
-  // 최근 재생 목록 (현재 큐에서 최대 10개)
-  const recentTracks = queue.slice(0, 10);
+  const recentTracks = queue;
 
   return (
     <SafeAreaView style={styles.container}>
