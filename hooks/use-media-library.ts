@@ -23,6 +23,46 @@ function isCallRecording(uri: string): boolean {
   );
 }
 
+function stripExtension(filename: string): string {
+  return filename.replace(/\.[^/.]+$/, "");
+}
+
+function parseTrackMetadata(filename: string) {
+  const baseName = stripExtension(filename).trim();
+  const separators = [" - ", " – ", " — "];
+
+  for (const separator of separators) {
+    const [artistPart, titlePart, ...rest] = baseName.split(separator);
+    if (!artistPart || !titlePart || rest.length > 0) continue;
+
+    const artist = artistPart.trim();
+    const title = titlePart.trim();
+    if (!artist || !title) continue;
+
+    return { title, artist };
+  }
+
+  return {
+    title: baseName,
+    artist: undefined,
+  };
+}
+
+function normalizeText(value: string | undefined): string {
+  return (value ?? "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getTrackDedupKey(track: Track): string {
+  const normalizedTitle = normalizeText(track.title);
+  const normalizedArtist = normalizeText(track.artist);
+  const roundedDurationMs = Math.round(track.duration / 1000) * 1000;
+
+  return `${normalizedTitle}::${normalizedArtist}::${roundedDurationMs}`;
+}
+
 interface UseMediaLibraryResult {
   tracks: Track[];
   isLoading: boolean;
@@ -80,16 +120,25 @@ export function useMediaLibrary(): UseMediaLibraryResult {
         (asset) => !isCallRecording(asset.uri),
       );
 
-      const formattedTracks: Track[] = filteredAssets.map((asset) => ({
-        id: asset.id,
-        uri: asset.uri,
-        title: asset.filename.replace(/\.[^/.]+$/, ""),
-        duration: asset.duration * 1000,
-        album: asset.albumId,
-      }));
+      const formattedTracks: Track[] = filteredAssets.map((asset) => {
+        const { title, artist } = parseTrackMetadata(asset.filename);
 
-      setTracks(formattedTracks);
-      setLibraryTracks(formattedTracks);
+        return {
+          id: asset.id,
+          uri: asset.uri,
+          title,
+          artist,
+          duration: asset.duration * 1000,
+          album: asset.albumId,
+        };
+      });
+
+      const dedupedTracks = Array.from(
+        new Map(formattedTracks.map((track) => [getTrackDedupKey(track), track])).values(),
+      );
+
+      setTracks(dedupedTracks);
+      setLibraryTracks(dedupedTracks);
     } catch (e) {
       setError("음악 목록을 불러오는데 실패했습니다.");
     } finally {

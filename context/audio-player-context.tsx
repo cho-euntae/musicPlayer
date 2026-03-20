@@ -49,6 +49,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   }, [player]);
 
   // 백그라운드 재생 + 오디오 포커스 설정 (앱 시작 시 1회)
+  // Provider 언마운트(Fast Refresh 포함) 시 반드시 pause → 이중 재생 방지
   useEffect(() => {
     setAudioModeAsync({
       playsInSilentMode: true,
@@ -57,9 +58,17 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     });
 
     return () => {
+      try { playerRef.current.pause(); } catch {}
       safeLockScreen(playerRef.current, false);
     };
   }, []);
+
+  // 앱 복원 시 마지막 재생 위치로 이동
+  useEffect(() => {
+    if (!status.isLoaded || pendingSeekPosition === null) return;
+    player.seekTo(pendingSeekPosition / 1000);
+    clearPendingSeekPosition();
+  }, [status.isLoaded, pendingSeekPosition, player, clearPendingSeekPosition]);
 
   // 오디오 로드 완료되면 자동 재생 + 락스크린 컨트롤 활성화
   // usePlayerStore.getState()로 최신 isPlaying을 읽어 stale closure 방지
@@ -67,10 +76,6 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     if (!status.isLoaded) return;
 
     const { isPlaying: latestIsPlaying } = usePlayerStore.getState();
-    if (pendingSeekPosition !== null) {
-      player.seekTo(pendingSeekPosition / 1000);
-      clearPendingSeekPosition();
-    }
     if (latestIsPlaying && !status.playing) {
       player.play();
     }
@@ -80,7 +85,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
         artist: currentTrack.artist ?? '알 수 없는 아티스트',
       });
     }
-  }, [status.isLoaded, player, currentTrack, pendingSeekPosition, clearPendingSeekPosition]);
+  }, [status.isLoaded, player, currentTrack]);
 
   // 진행 시간 / 총 길이 동기화
   useEffect(() => {

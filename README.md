@@ -131,6 +131,7 @@ npx expo run:android --device
 
 ```bash
 npx expo start
+npx expo start --clear --dev-client
 # 핸드폰에서 music-player 앱 실행하면 자동 연결
 # USB 없이 Wi-Fi로도 가능
 ```
