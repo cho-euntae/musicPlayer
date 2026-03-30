@@ -120,6 +120,37 @@ sdk.dir=C\:\\Users\\[윈도우 사용자명]\\AppData\\Local\\Android\\Sdk
 
 ## 실행 방법
 
+### 빠른 실행 요약
+
+프로젝트 다시 켰을 때 가장 자주 쓰는 순서:
+
+```bash
+cd /Users/cho-euntae/Desktop/Dev/vscode_workspace/music-player
+npm install
+npm run android
+```
+
+- `npm run android`
+  - 안드로이드 앱 빌드 + 설치 + 실행
+- 이미 앱이 설치되어 있고 개발 서버만 다시 띄우면 될 때:
+
+```bash
+npm start
+```
+
+- 릴리즈 APK를 다시 만들 때:
+
+```bash
+cd android
+./gradlew assembleRelease
+```
+
+APK 위치:
+
+```bash
+android/app/build/outputs/apk/release/app-release.apk
+```
+
 ### 최초 실행 (앱 빌드 + 설치)
 
 ```bash
@@ -140,6 +171,19 @@ npx expo start --clear --dev-client
 
 - 파일 저장하면 핫 리로드로 **핸드폰에 자동 반영**
 - 강제 새로고침: 터미널에서 `r` 키 입력
+
+### 터미널 단축키
+
+Expo 개발 서버가 켜져 있을 때 터미널에서 자주 쓰는 키:
+
+- `r`
+  - 앱 강제 새로고침
+- `a`
+  - Android 실행/연결
+- `m`
+  - 개발자 메뉴 열기
+- `Ctrl + C`
+  - 개발 서버 종료
 
 ### apk로 뽑아내기
 
