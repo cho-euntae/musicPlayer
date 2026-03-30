@@ -161,8 +161,14 @@ export default function LibraryScreen() {
       {/* 트랙 목록 */}
       {filteredTracks.length === 0 && searchQuery.trim() !== '' ? (
         <View style={styles.emptyBox}>
-          <Ionicons name="search-outline" size={48} color="#333" />
-          <Text style={styles.emptyText}>&quot;{searchQuery}&quot; 검색 결과가 없습니다</Text>
+          <View style={styles.emptyIconWrap}>
+            <Ionicons name="search-outline" size={44} color="#4d7b5d" />
+          </View>
+          <Text style={styles.emptyTitle}>&quot;{searchQuery}&quot; 검색 결과가 없습니다</Text>
+          <Text style={styles.emptyText}>곡 이름, 아티스트, 앨범명으로 다시 검색해보세요.</Text>
+          <TouchableOpacity style={styles.emptyActionBtn} onPress={handleSearchClose}>
+            <Text style={styles.emptyActionText}>검색 닫기</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
@@ -236,8 +242,51 @@ const styles = StyleSheet.create({
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, gap: 8,
   },
   searchInput: { flex: 1, color: '#fff', fontSize: 15, padding: 0 },
-  emptyBox: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  emptyText: { color: '#555', fontSize: 14 },
+  emptyBox: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginVertical: 24,
+    padding: 28,
+    gap: 12,
+    borderRadius: 24,
+    backgroundColor: '#171a18',
+    borderWidth: 1,
+    borderColor: '#232825',
+  },
+  emptyIconWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: 20,
+    backgroundColor: '#111412',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  emptyText: {
+    color: '#6f7a73',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 21,
+  },
+  emptyActionBtn: {
+    marginTop: 4,
+    backgroundColor: '#1DB954',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+  },
+  emptyActionText: {
+    color: '#071109',
+    fontSize: 14,
+    fontWeight: '800',
+  },
   actionBar: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     backgroundColor: '#1e1e1e',

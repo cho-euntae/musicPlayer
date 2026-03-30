@@ -96,6 +96,20 @@ export default function PlaylistDetailScreen() {
 
       {tracks.length === 0 ? (
         <View style={styles.emptyBox}>
+          <View style={styles.emptyIconWrap}>
+            <Ionicons
+              name={id === 'favorites' ? 'heart-outline' : id === 'recently-played' ? 'time-outline' : 'list-outline'}
+              size={42}
+              color="#5f6d8c"
+            />
+          </View>
+          <Text style={styles.emptyTitle}>
+            {id === 'favorites'
+              ? '아직 즐겨찾기한 곡이 없습니다'
+              : id === 'recently-played'
+              ? '최근 재생 기록이 비어 있습니다'
+              : '플레이리스트가 비어 있습니다'}
+          </Text>
           <Text style={styles.emptyText}>
             {id === 'favorites'
               ? '즐겨찾기에 추가된 곡이 없습니다\n트랙의 ♡ 버튼을 눌러 추가하세요'
@@ -103,6 +117,9 @@ export default function PlaylistDetailScreen() {
               ? '아직 재생한 곡이 없습니다'
               : '이 플레이리스트에 곡이 없습니다'}
           </Text>
+          <TouchableOpacity style={styles.emptyActionBtn} onPress={() => router.push('/library')}>
+            <Text style={styles.emptyActionText}>라이브러리에서 곡 보기</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
@@ -154,8 +171,51 @@ const styles = StyleSheet.create({
     borderRadius: 24, marginTop: 8,
   },
   playAllText: { color: '#000', fontWeight: 'bold', fontSize: 15 },
-  emptyBox: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  emptyText: { color: '#555', fontSize: 14, textAlign: 'center', lineHeight: 22 },
+  emptyBox: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginBottom: 24,
+    padding: 28,
+    gap: 12,
+    borderRadius: 24,
+    backgroundColor: '#171a18',
+    borderWidth: 1,
+    borderColor: '#232825',
+  },
+  emptyIconWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: 20,
+    backgroundColor: '#14171d',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  emptyText: {
+    color: '#727884',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  emptyActionBtn: {
+    marginTop: 4,
+    backgroundColor: '#1DB954',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+  },
+  emptyActionText: {
+    color: '#071109',
+    fontSize: 14,
+    fontWeight: '800',
+  },
   trackRow: {
     flexDirection: 'row',
     alignItems: 'center',

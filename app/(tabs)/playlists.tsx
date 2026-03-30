@@ -105,7 +105,14 @@ export default function PlaylistsScreen() {
 
             {playlists.length === 0 && (
               <View style={styles.emptyBox}>
-                <Text style={styles.emptyText}>+ 버튼으로 플레이리스트를 만들어보세요</Text>
+                <View style={styles.emptyIconWrap}>
+                  <Ionicons name="albums-outline" size={44} color="#8b7ab3" />
+                </View>
+                <Text style={styles.emptyTitle}>아직 내 플레이리스트가 없습니다</Text>
+                <Text style={styles.emptyText}>자주 듣는 곡을 묶어두면 재생 흐름을 빠르게 시작할 수 있습니다.</Text>
+                <TouchableOpacity style={styles.emptyActionBtn} onPress={() => setModalVisible(true)}>
+                  <Text style={styles.emptyActionText}>첫 플레이리스트 만들기</Text>
+                </TouchableOpacity>
               </View>
             )}
           </>
@@ -175,8 +182,49 @@ const styles = StyleSheet.create({
   playlistInfo: { flex: 1, gap: 2 },
   playlistName: { color: '#fff', fontSize: 15, fontWeight: '500' },
   playlistCount: { color: '#888', fontSize: 13 },
-  emptyBox: { alignItems: 'center', paddingVertical: 32 },
-  emptyText: { color: '#444', fontSize: 14 },
+  emptyBox: {
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginTop: 20,
+    padding: 28,
+    gap: 12,
+    borderRadius: 24,
+    backgroundColor: '#171a18',
+    borderWidth: 1,
+    borderColor: '#232825',
+  },
+  emptyIconWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: 20,
+    backgroundColor: '#141218',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  emptyText: {
+    color: '#73717e',
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 21,
+  },
+  emptyActionBtn: {
+    marginTop: 4,
+    backgroundColor: '#1DB954',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+  },
+  emptyActionText: {
+    color: '#071109',
+    fontSize: 14,
+    fontWeight: '800',
+  },
   modalOverlay: {
     flex: 1, backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center', alignItems: 'center',
