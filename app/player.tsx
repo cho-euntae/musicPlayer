@@ -45,6 +45,11 @@ export default function PlayerScreen() {
         </Text>
       </View>
 
+      <TouchableOpacity style={styles.queueBtn} onPress={() => router.push('/queue')}>
+        <Ionicons name="list-outline" size={18} color="#fff" />
+        <Text style={styles.queueBtnText}>현재 재생 큐</Text>
+      </TouchableOpacity>
+
       {/* 진행 바 */}
       <ProgressBar position={position} duration={duration} onSeek={seekTo} />
 
@@ -88,6 +93,23 @@ const styles = StyleSheet.create({
   trackArtist: {
     color: '#888',
     fontSize: 16,
+  },
+  queueBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#1e1e1e',
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+  },
+  queueBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   empty: {
     flex: 1,

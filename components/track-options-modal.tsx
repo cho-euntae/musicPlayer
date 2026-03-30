@@ -12,7 +12,8 @@ interface TrackOptionsModalProps {
 }
 
 export function TrackOptionsModal({ track, visible, onClose }: TrackOptionsModalProps) {
-  const { playlists, addTrackToPlaylist, toggleFavorite, favorites } = usePlayerStore();
+  const { playlists, addTrackToPlaylist, addTrackToNextInQueue, toggleFavorite, favorites } =
+    usePlayerStore();
   const isFav = track ? favorites.includes(track.id) : false;
 
   if (!track) return null;
@@ -24,6 +25,11 @@ export function TrackOptionsModal({ track, visible, onClose }: TrackOptionsModal
 
   const handleToggleFavorite = () => {
     toggleFavorite(track.id);
+    onClose();
+  };
+
+  const handlePlayNext = () => {
+    addTrackToNextInQueue(track);
     onClose();
   };
 
@@ -56,6 +62,11 @@ export function TrackOptionsModal({ track, visible, onClose }: TrackOptionsModal
           <Text style={styles.optionText}>
             {isFav ? '즐겨찾기 제거' : '즐겨찾기 추가'}
           </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.option} onPress={handlePlayNext}>
+          <Ionicons name="play-forward-outline" size={20} color="#fff" />
+          <Text style={styles.optionText}>다음에 재생</Text>
         </TouchableOpacity>
 
         {/* 플레이리스트에 추가 */}

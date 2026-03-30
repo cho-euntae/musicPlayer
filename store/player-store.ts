@@ -63,6 +63,10 @@ interface PlayerState {
   toggleRepeat: () => void;
   playNext: () => void;
   playPrev: () => void;
+  addTrackToNextInQueue: (track: Track) => void;
+  clearQueue: () => void;
+  moveTrackInQueue: (fromIndex: number, toIndex: number) => void;
+  removeTrackFromQueue: (trackId: string) => void;
 
   // 즐겨찾기 액션
   toggleFavorite: (trackId: string) => void;
@@ -168,6 +172,120 @@ export const usePlayerStore = create<PlayerState>()(
           set({ currentIndex: prevIndex, position: 0, lastTrackIndex: prevIndex, lastPosition: 0 });
         }
       },
+
+      addTrackToNextInQueue: (track) =>
+        set((s) => {
+          if (s.queue.length === 0) {
+            return {
+              queue: [track],
+              currentIndex: 0,
+              isPlaying: true,
+              position: 0,
+              lastQueue: [track],
+              lastTrackIndex: 0,
+              lastPosition: 0,
+              pendingSeekPosition: null,
+            };
+          }
+
+          const insertIndex = Math.min(s.currentIndex + 1, s.queue.length);
+          const nextQueue = [...s.queue];
+          nextQueue.splice(insertIndex, 0, track);
+
+          return {
+            queue: nextQueue,
+            lastQueue: nextQueue,
+            lastTrackIndex: s.currentIndex,
+          };
+        }),
+
+      clearQueue: () =>
+        set({
+          queue: [],
+          currentIndex: 0,
+          isPlaying: false,
+          position: 0,
+          duration: 0,
+          lastQueue: [],
+          lastTrackIndex: 0,
+          lastPosition: 0,
+          pendingSeekPosition: null,
+        }),
+
+      moveTrackInQueue: (fromIndex, toIndex) =>
+        set((s) => {
+          if (
+            fromIndex === toIndex ||
+            fromIndex < 0 ||
+            toIndex < 0 ||
+            fromIndex >= s.queue.length ||
+            toIndex >= s.queue.length
+          ) {
+            return s;
+          }
+
+          const nextQueue = [...s.queue];
+          const [movedTrack] = nextQueue.splice(fromIndex, 1);
+          nextQueue.splice(toIndex, 0, movedTrack);
+
+          let nextCurrentIndex = s.currentIndex;
+          if (s.currentIndex === fromIndex) {
+            nextCurrentIndex = toIndex;
+          } else if (fromIndex < s.currentIndex && toIndex >= s.currentIndex) {
+            nextCurrentIndex = s.currentIndex - 1;
+          } else if (fromIndex > s.currentIndex && toIndex <= s.currentIndex) {
+            nextCurrentIndex = s.currentIndex + 1;
+          }
+
+          return {
+            queue: nextQueue,
+            currentIndex: nextCurrentIndex,
+            lastQueue: nextQueue,
+            lastTrackIndex: nextCurrentIndex,
+          };
+        }),
+
+      removeTrackFromQueue: (trackId) =>
+        set((s) => {
+          const removeIndex = s.queue.findIndex((track) => track.id === trackId);
+          if (removeIndex === -1) return s;
+
+          const nextQueue = s.queue.filter((track) => track.id !== trackId);
+
+          if (nextQueue.length === 0) {
+            return {
+              queue: [],
+              currentIndex: 0,
+              isPlaying: false,
+              position: 0,
+              duration: 0,
+              lastQueue: [],
+              lastTrackIndex: 0,
+              lastPosition: 0,
+              pendingSeekPosition: null,
+            };
+          }
+
+          let nextIndex = s.currentIndex;
+          let nextPosition = s.position;
+
+          if (removeIndex < s.currentIndex) {
+            nextIndex = s.currentIndex - 1;
+          } else if (removeIndex === s.currentIndex) {
+            nextIndex = Math.min(s.currentIndex, nextQueue.length - 1);
+            nextPosition = 0;
+          }
+
+          return {
+            queue: nextQueue,
+            currentIndex: nextIndex,
+            position: nextPosition,
+            lastQueue: nextQueue,
+            lastTrackIndex: nextIndex,
+            lastPosition: nextPosition,
+            pendingSeekPosition: null,
+          };
+        }),
 
       toggleFavorite: (trackId) =>
         set((s) => ({
