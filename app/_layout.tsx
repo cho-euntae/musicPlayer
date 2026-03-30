@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { AudioPlayerProvider } from '@/context/audio-player-context';
@@ -8,10 +8,12 @@ import { useMediaLibrary } from '@/hooks/use-media-library';
 function AppInitializer() {
   useMediaLibrary();
   const { lastQueue, lastTrackIndex, lastPosition, restoreQueue } = usePlayerStore();
+  const hasRestoredRef = useRef(false);
 
   // 앱 시작 시 마지막 재생 큐/곡 복원
   useEffect(() => {
-    if (lastQueue.length > 0) {
+    if (!hasRestoredRef.current && lastQueue.length > 0) {
+      hasRestoredRef.current = true;
       restoreQueue(lastQueue, lastTrackIndex, lastPosition);
     }
   }, [lastPosition, lastQueue, lastTrackIndex, restoreQueue]);

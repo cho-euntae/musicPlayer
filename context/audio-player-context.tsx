@@ -48,6 +48,14 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     playerRef.current = player;
   }, [player]);
 
+  // 트랙 변경으로 player 인스턴스가 교체되면 이전 인스턴스를 즉시 정지
+  useEffect(() => {
+    return () => {
+      try { player.pause(); } catch {}
+      safeLockScreen(player, false);
+    };
+  }, [player]);
+
   // 백그라운드 재생 + 오디오 포커스 설정 (앱 시작 시 1회)
   // Provider 언마운트(Fast Refresh 포함) 시 반드시 pause → 이중 재생 방지
   useEffect(() => {
