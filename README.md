@@ -8,7 +8,7 @@
 
 - **React Native** + **Expo SDK 54**
 - **Expo Router** - 파일 기반 라우팅
-- **expo-audio** - 오디오 재생
+- **react-native-track-player** - 백그라운드 오디오 재생 및 미디어 컨트롤
 - **expo-media-library** - 기기 음악 목록 접근
 - **Zustand** - 전역 상태 관리
 

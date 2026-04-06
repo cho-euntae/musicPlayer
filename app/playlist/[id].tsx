@@ -48,12 +48,14 @@ export default function PlaylistDetailScreen() {
   const handlePlay = (index: number) => {
     setQueue(tracks, index);
     setIsPlaying(true);
+    router.push('/player');
   };
 
   const handlePlayAll = () => {
     if (tracks.length === 0) return;
     setQueue(tracks, 0);
     setIsPlaying(true);
+    router.push('/player');
   };
 
   const handleRemove = (track: Track) => {

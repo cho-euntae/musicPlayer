@@ -4,6 +4,7 @@ import {
   ActivityIndicator, StyleSheet, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useMediaLibrary } from '@/hooks/use-media-library';
 import { TrackItem } from '@/components/track-item';
@@ -42,6 +43,7 @@ export default function LibraryScreen() {
   const handlePlay = (index: number) => {
     setQueue(filteredTracks, index);
     setIsPlaying(true);
+    router.push('/player');
   };
 
   const handleLongPress = (track: Track) => {

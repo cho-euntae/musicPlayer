@@ -1,6 +1,17 @@
-import React, { createContext, useContext, useEffect, useCallback, useRef } from 'react';
-import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from 'expo-audio';
-import { usePlayerStore, useCurrentTrack } from '@/store/player-store';
+import React, { createContext, useCallback, useContext, useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
+import TrackPlayer, {
+  AppKilledPlaybackBehavior,
+  Capability,
+  Event,
+  RepeatMode,
+  State,
+  type Track as RNTPTrack,
+  usePlaybackState,
+  useProgress,
+  useTrackPlayerEvents,
+} from 'react-native-track-player';
+import { useCurrentTrack, usePlayerStore, type Track as PlayerTrack } from '@/store/player-store';
 
 interface AudioPlayerContextValue {
   togglePlay: () => void;
@@ -12,154 +23,301 @@ const AudioPlayerContext = createContext<AudioPlayerContextValue>({
   seekTo: () => {},
 });
 
-// 이미 release된 player에 setActiveForLockScreen 호출 시 충돌 방지
-function safeLockScreen(player: ReturnType<typeof useAudioPlayer>, active: boolean, metadata?: { title: string; artist: string }) {
-  try {
-    if (active && metadata) {
-      player.setActiveForLockScreen(true, metadata);
-    } else {
-      player.setActiveForLockScreen(false);
-    }
-  } catch {
-    // player가 이미 release된 경우 무시
+const PLAYER_CAPABILITIES = [
+  Capability.Play,
+  Capability.Pause,
+  Capability.SeekTo,
+  Capability.SkipToNext,
+  Capability.SkipToPrevious,
+] as const;
+
+function isPlayerNotInitialized(error: unknown) {
+  return String(error).includes('player is not initialized');
+}
+
+function isPlaybackActive(state: State | undefined) {
+  return state === State.Playing || state === State.Buffering;
+}
+
+function mapRepeatMode(mode: 'off' | 'all' | 'one') {
+  switch (mode) {
+    case 'all':
+      return RepeatMode.Queue;
+    case 'one':
+      return RepeatMode.Track;
+    default:
+      return RepeatMode.Off;
   }
+}
+
+function toTrackPlayerTrack(track: PlayerTrack) {
+  return {
+    id: track.id,
+    url: track.uri,
+    title: track.title,
+    artist: track.artist ?? '알 수 없는 아티스트',
+    album: track.album,
+    artwork: track.artwork,
+    duration: track.duration / 1000,
+  };
+}
+
+function fromTrackPlayerTrack(track: RNTPTrack): PlayerTrack {
+  return {
+    id: String(track.id),
+    uri: track.url,
+    title: track.title ?? '알 수 없는 제목',
+    artist: track.artist ?? '알 수 없는 아티스트',
+    album: typeof track.album === 'string' ? track.album : undefined,
+    duration: Math.round((track.duration ?? 0) * 1000),
+    artwork: typeof track.artwork === 'string' ? track.artwork : undefined,
+  };
 }
 
 export function AudioPlayerProvider({ children }: { children: React.ReactNode }) {
   const currentTrack = useCurrentTrack();
   const {
+    queue,
+    currentIndex,
+    isPlaying,
+    repeatMode,
     setIsPlaying,
     setPosition,
     setDuration,
-    playNext,
-    repeatMode,
     addToRecentlyPlayed,
     savePlaybackState,
     pendingSeekPosition,
     clearPendingSeekPosition,
   } = usePlayerStore();
 
-  const player = useAudioPlayer(currentTrack ? { uri: currentTrack.uri } : null);
-  const status = useAudioPlayerStatus(player);
+  const playbackState = usePlaybackState();
+  const progress = useProgress(1000);
+  const setupPromiseRef = useRef<Promise<void> | null>(null);
+  const syncedQueueSignatureRef = useRef('');
+  const latestProgressRef = useRef(0);
+  const queueSignature = queue.map((track) => `${track.id}:${track.uri}`).join('|');
 
-  // 현재 player를 ref로 추적 (cleanup에서 최신 player 사용)
-  const playerRef = useRef(player);
-  useEffect(() => {
-    playerRef.current = player;
-  }, [player]);
+  const ensurePlayerSetup = useCallback(async () => {
+    if (!setupPromiseRef.current) {
+      setupPromiseRef.current = (async () => {
+        try {
+          await TrackPlayer.getActiveTrackIndex();
+        } catch (error) {
+          if (!isPlayerNotInitialized(error)) {
+            throw error;
+          }
 
-  // 트랙 변경으로 player 인스턴스가 교체되면 이전 인스턴스를 즉시 정지
+          await TrackPlayer.setupPlayer();
+        }
+
+        await TrackPlayer.updateOptions({
+          android: {
+            appKilledPlaybackBehavior: AppKilledPlaybackBehavior.ContinuePlayback,
+            alwaysPauseOnInterruption: true,
+          },
+          progressUpdateEventInterval: 1,
+          capabilities: [...PLAYER_CAPABILITIES],
+          notificationCapabilities: [...PLAYER_CAPABILITIES],
+          compactCapabilities: [
+            Capability.SkipToPrevious,
+            Capability.Play,
+            Capability.Pause,
+            Capability.SkipToNext,
+          ],
+        });
+      })().catch((error) => {
+        setupPromiseRef.current = null;
+        throw error;
+      });
+    }
+
+    await setupPromiseRef.current;
+  }, []);
+
+  const syncFromTrackPlayer = useCallback(async () => {
+    await ensurePlayerSetup();
+
+    const [nativeQueue, activeIndex, currentProgress, currentPlaybackState] = await Promise.all([
+      TrackPlayer.getQueue(),
+      TrackPlayer.getActiveTrackIndex(),
+      TrackPlayer.getProgress(),
+      TrackPlayer.getPlaybackState(),
+    ]);
+
+    const store = usePlayerStore.getState();
+
+    if (store.queue.length === 0 && nativeQueue.length > 0) {
+      const restoredQueue = nativeQueue.map(fromTrackPlayerTrack);
+      const restoredIndex = typeof activeIndex === 'number' ? activeIndex : 0;
+      const restoredPosition = (currentProgress.position ?? 0) * 1000;
+
+      store.restoreQueue(restoredQueue, restoredIndex, restoredPosition);
+      syncedQueueSignatureRef.current = restoredQueue
+        .map((track) => `${track.id}:${track.uri}`)
+        .join('|');
+    }
+
+    if (typeof activeIndex === 'number' && activeIndex !== store.currentIndex) {
+      store.setCurrentIndex(activeIndex);
+    }
+
+    setPosition((currentProgress.position ?? 0) * 1000);
+    setDuration((currentProgress.duration ?? 0) * 1000);
+    setIsPlaying(isPlaybackActive(currentPlaybackState.state));
+  }, [ensurePlayerSetup, setDuration, setIsPlaying, setPosition]);
+
   useEffect(() => {
+    void ensurePlayerSetup();
+  }, [ensurePlayerSetup]);
+
+  useEffect(() => {
+    latestProgressRef.current = progress.position ?? 0;
+    setPosition((progress.position ?? 0) * 1000);
+    setDuration((progress.duration ?? 0) * 1000);
+  }, [progress.duration, progress.position, setDuration, setPosition]);
+
+  useEffect(() => {
+    setIsPlaying(isPlaybackActive(playbackState.state));
+  }, [playbackState.state, setIsPlaying]);
+
+  useEffect(() => {
+    void (async () => {
+      await ensurePlayerSetup();
+      await TrackPlayer.setRepeatMode(mapRepeatMode(repeatMode));
+    })();
+  }, [ensurePlayerSetup, repeatMode]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    void (async () => {
+      await ensurePlayerSetup();
+
+      if (isCancelled) {
+        return;
+      }
+
+      if (queue.length === 0) {
+        syncedQueueSignatureRef.current = '';
+        await TrackPlayer.reset();
+        setPosition(0);
+        setDuration(0);
+        return;
+      }
+
+      const targetIndex = Math.min(currentIndex, queue.length - 1);
+      const queueChanged = syncedQueueSignatureRef.current !== queueSignature;
+
+      if (queueChanged) {
+        await TrackPlayer.setQueue(queue.map(toTrackPlayerTrack));
+        syncedQueueSignatureRef.current = queueSignature;
+
+        const restorePositionSeconds =
+          pendingSeekPosition !== null
+            ? pendingSeekPosition / 1000
+            : latestProgressRef.current;
+
+        await TrackPlayer.skip(targetIndex, restorePositionSeconds);
+
+        if (pendingSeekPosition !== null) {
+          clearPendingSeekPosition();
+        }
+
+        return;
+      }
+
+      const activeIndex = await TrackPlayer.getActiveTrackIndex();
+      if (activeIndex !== targetIndex) {
+        await TrackPlayer.skip(targetIndex, 0);
+      }
+    })();
+
     return () => {
-      try { player.pause(); } catch {}
-      safeLockScreen(player, false);
+      isCancelled = true;
     };
-  }, [player]);
+  }, [
+    clearPendingSeekPosition,
+    currentIndex,
+    ensurePlayerSetup,
+    pendingSeekPosition,
+    queue,
+    queueSignature,
+    setDuration,
+    setPosition,
+  ]);
 
-  // 백그라운드 재생 + 오디오 포커스 설정 (앱 시작 시 1회)
-  // Provider 언마운트(Fast Refresh 포함) 시 반드시 pause → 이중 재생 방지
   useEffect(() => {
-    setAudioModeAsync({
-      playsInSilentMode: true,
-      shouldPlayInBackground: true,
-      interruptionMode: 'doNotMix',
+    void (async () => {
+      await ensurePlayerSetup();
+
+      if (queue.length === 0) {
+        return;
+      }
+
+      const currentPlaybackState = await TrackPlayer.getPlaybackState();
+      const playingNow = isPlaybackActive(currentPlaybackState.state);
+
+      if (isPlaying && !playingNow) {
+        await TrackPlayer.play();
+      } else if (!isPlaying && playingNow) {
+        await TrackPlayer.pause();
+      }
+    })();
+  }, [ensurePlayerSetup, isPlaying, queue.length]);
+
+  useTrackPlayerEvents([Event.PlaybackActiveTrackChanged], (event) => {
+    if (typeof event.index !== 'number') {
+      return;
+    }
+
+    const store = usePlayerStore.getState();
+    if (event.index !== store.currentIndex) {
+      store.setCurrentIndex(event.index);
+    }
+  });
+
+  useEffect(() => {
+    void syncFromTrackPlayer();
+
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        void syncFromTrackPlayer();
+      }
     });
 
     return () => {
-      try { playerRef.current.pause(); } catch {}
-      safeLockScreen(playerRef.current, false);
+      subscription.remove();
     };
-  }, []);
+  }, [syncFromTrackPlayer]);
 
-  // 앱 복원 시 마지막 재생 위치로 이동
   useEffect(() => {
-    if (!status.isLoaded || pendingSeekPosition === null) return;
-    player.seekTo(pendingSeekPosition / 1000);
-    clearPendingSeekPosition();
-  }, [status.isLoaded, pendingSeekPosition, player, clearPendingSeekPosition]);
-
-  // 오디오 로드 완료되면 자동 재생 + 락스크린 컨트롤 활성화
-  // usePlayerStore.getState()로 최신 isPlaying을 읽어 stale closure 방지
-  useEffect(() => {
-    if (!status.isLoaded) return;
-
-    const { isPlaying: latestIsPlaying } = usePlayerStore.getState();
-    if (latestIsPlaying && !status.playing) {
-      player.play();
+    if (!currentTrack) {
+      return;
     }
-    if (currentTrack) {
-      safeLockScreen(player, true, {
-        title: currentTrack.title,
-        artist: currentTrack.artist ?? '알 수 없는 아티스트',
-      });
-    }
-  }, [status.isLoaded, player, currentTrack]);
 
-  // 진행 시간 / 총 길이 동기화
-  useEffect(() => {
-    if (status.isLoaded) {
-      setDuration(status.duration ? status.duration * 1000 : 0);
-      setPosition(status.currentTime ? status.currentTime * 1000 : 0);
-    }
-  }, [status.currentTime, status.duration]);
-
-  // 실제 재생 상태를 스토어에 반영
-  useEffect(() => {
-    if (status.isLoaded) {
-      setIsPlaying(status.playing);
-    }
-  }, [status.playing]);
-
-  // 트랙 끝났을 때
-  useEffect(() => {
-    if (status.didJustFinish) {
-      if (repeatMode === 'one') {
-        player.seekTo(0);
-        player.play();
-      } else {
-        playNext();
-      }
-    }
-  }, [status.didJustFinish]);
-
-  // 트랙 변경 시 최근 재생 기록 + 락스크린 메타데이터 갱신
-  useEffect(() => {
-    if (!currentTrack) return;
     addToRecentlyPlayed(currentTrack.id);
-    if (status.isLoaded) {
-      safeLockScreen(player, true, {
-        title: currentTrack.title,
-        artist: currentTrack.artist ?? '알 수 없는 아티스트',
-      });
-    }
-  }, [currentTrack?.id]);
+  }, [addToRecentlyPlayed, currentTrack?.id]);
 
-  // 재생 위치 주기적 저장 (5초마다)
   useEffect(() => {
-    if (!status.playing) return;
+    if (!isPlaying) {
+      return;
+    }
+
     const interval = setInterval(() => {
-      const currentTime = player.currentTime;
-      if (currentTime !== undefined) {
-        savePlaybackState(currentTime * 1000);
-      }
+      savePlaybackState(latestProgressRef.current * 1000);
     }, 5000);
+
     return () => clearInterval(interval);
-  }, [status.playing, player, savePlaybackState]);
+  }, [isPlaying, savePlaybackState]);
 
   const togglePlay = useCallback(() => {
-    if (status.playing) {
-      player.pause();
-    } else {
-      player.play();
-    }
-  }, [status.playing, player]);
+    const playingNow = usePlayerStore.getState().isPlaying;
+    usePlayerStore.getState().setIsPlaying(!playingNow);
+  }, []);
 
-  const seekTo = useCallback(
-    (positionMs: number) => {
-      player.seekTo(positionMs / 1000);
-    },
-    [player]
-  );
+  const seekTo = useCallback((positionMs: number) => {
+    void TrackPlayer.seekTo(positionMs / 1000);
+  }, []);
 
   return (
     <AudioPlayerContext.Provider value={{ togglePlay, seekTo }}>

@@ -36,6 +36,7 @@ export default function HomeScreen() {
     if (index === -1) return;
     setCurrentIndex(index);
     setIsPlaying(true);
+    router.push('/player');
   };
 
   return (

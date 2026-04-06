@@ -20,6 +20,43 @@ const patches = [
     to: `  const useOptionalKeepAwake: (tag?: string) => void = () => {};
 `,
   },
+  {
+    file: path.join(
+      rootDir,
+      'node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt'
+    ),
+    from: `        if (index >= 0 && index < musicService.tracks.size) {
+            callback.resolve(Arguments.fromBundle(musicService.tracks[index].originalItem))
+        } else {
+            callback.resolve(null)
+        }
+`,
+    to: `        if (index >= 0 && index < musicService.tracks.size) {
+            val originalItem = musicService.tracks[index].originalItem
+            callback.resolve(originalItem?.let { Arguments.fromBundle(it) })
+        } else {
+            callback.resolve(null)
+        }
+`,
+  },
+  {
+    file: path.join(
+      rootDir,
+      'node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt'
+    ),
+    from: `        callback.resolve(
+            if (musicService.tracks.isEmpty()) null
+            else Arguments.fromBundle(
+                musicService.tracks[musicService.getCurrentTrackIndex()].originalItem
+            )
+        )
+`,
+    to: `        val originalItem = musicService.tracks
+            .getOrNull(musicService.getCurrentTrackIndex())
+            ?.originalItem
+        callback.resolve(originalItem?.let { Arguments.fromBundle(it) })
+`,
+  },
 ];
 
 for (const patch of patches) {
@@ -28,7 +65,10 @@ for (const patch of patches) {
   }
 
   const contents = fs.readFileSync(patch.file, 'utf8');
-  if (contents.includes("const useOptionalKeepAwake: (tag?: string) => void = () => {};")) {
+  if (
+    contents.includes("const useOptionalKeepAwake: (tag?: string) => void = () => {};") ||
+    contents.includes('callback.resolve(originalItem?.let { Arguments.fromBundle(it) })')
+  ) {
     continue;
   }
 

@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { AudioPlayerProvider } from '@/context/audio-player-context';
 import { usePlayerStore } from '@/store/player-store';
 import { useMediaLibrary } from '@/hooks/use-media-library';
+import '@/services/register-track-player';
 
 function AppInitializer() {
   useMediaLibrary();

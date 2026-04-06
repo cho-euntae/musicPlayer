@@ -20,6 +20,7 @@ export default function QueueScreen() {
   const handlePlay = (index: number) => {
     setCurrentIndex(index);
     setIsPlaying(true);
+    router.push('/player');
   };
 
   const handleRemove = (trackId: string) => {
