@@ -2,6 +2,7 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
 import { usePlayerStore, useCurrentTrack, Track } from '@/store/player-store';
 import { TrackItem } from '@/components/track-item';
 
@@ -15,7 +16,8 @@ export default function PlaylistDetailScreen() {
   const currentTrack = useCurrentTrack();
   const {
     libraryTracks, queue, favorites, recentlyPlayed, playlists,
-    setQueue, setIsPlaying, removeTrackFromPlaylist, toggleFavorite,
+    setQueue, setIsPlaying, removeTrackFromPlaylist, toggleFavorite, moveTrackInPlaylist,
+    trackPlayCounts,
   } = usePlayerStore();
 
   const isCustomPlaylist = !SPECIAL_PLAYLISTS[id];
@@ -75,6 +77,60 @@ export default function PlaylistDetailScreen() {
     ]);
   };
 
+  const handleDragEnd = ({ from, to }: { from: number; to: number }) => {
+    if (!isCustomPlaylist || from === to) return;
+    moveTrackInPlaylist(id, from, to);
+  };
+
+  const renderTrackRow = ({
+    item,
+    index,
+    drag,
+    isActive,
+  }: {
+    item: Track;
+    index: number;
+    drag?: () => void;
+    isActive?: boolean;
+  }) => (
+    <View style={styles.trackRow}>
+      <View style={styles.trackItemWrap}>
+        <TrackItem
+          track={item}
+          isActive={currentTrack?.id === item.id}
+          onPress={() => handlePlay(index)}
+        />
+      </View>
+      <View style={styles.rowActions}>
+        <Text style={styles.playCountText}>{trackPlayCounts[item.id] ?? 0}회</Text>
+        {isCustomPlaylist ? (
+          <TouchableOpacity
+            style={styles.dragBtn}
+            onLongPress={drag}
+            disabled={!drag}
+            delayLongPress={120}
+            hitSlop={8}
+          >
+            <Ionicons
+              name="reorder-three-outline"
+              size={20}
+              color={isActive ? '#1DB954' : '#666'}
+            />
+          </TouchableOpacity>
+        ) : null}
+        {(isCustomPlaylist || id === 'favorites') && (
+          <TouchableOpacity
+            style={styles.removeBtn}
+            onPress={() => handleRemove(item)}
+            hitSlop={8}
+          >
+            <Ionicons name="trash-outline" size={18} color="#555" />
+          </TouchableOpacity>
+        )}
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
@@ -123,30 +179,30 @@ export default function PlaylistDetailScreen() {
             <Text style={styles.emptyActionText}>라이브러리에서 곡 보기</Text>
           </TouchableOpacity>
         </View>
+      ) : isCustomPlaylist ? (
+        <DraggableFlatList
+          data={tracks}
+          keyExtractor={(item) => item.id}
+          onDragEnd={handleDragEnd}
+          renderItem={({ item, getIndex, drag, isActive }) => (
+            <ScaleDecorator>
+              {renderTrackRow({
+                item,
+                index: getIndex() ?? 0,
+                drag,
+                isActive,
+              })}
+            </ScaleDecorator>
+          )}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 16 }}
+        />
       ) : (
         <FlatList
           data={tracks}
           keyExtractor={(item) => item.id}
           renderItem={({ item, index }) => (
-            <View style={styles.trackRow}>
-              <View style={styles.trackItemWrap}>
-                <TrackItem
-                  track={item}
-                  isActive={currentTrack?.id === item.id}
-                  onPress={() => handlePlay(index)}
-                />
-              </View>
-              {/* 즐겨찾기 또는 커스텀 플레이리스트에서만 삭제 버튼 표시 */}
-              {(isCustomPlaylist || id === 'favorites') && (
-                <TouchableOpacity
-                  style={styles.removeBtn}
-                  onPress={() => handleRemove(item)}
-                  hitSlop={8}
-                >
-                  <Ionicons name="trash-outline" size={18} color="#555" />
-                </TouchableOpacity>
-              )}
-            </View>
+            renderTrackRow({ item, index })
           )}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 16 }}
@@ -224,6 +280,21 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   trackItemWrap: { flex: 1 },
+  rowActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  playCountText: {
+    color: '#777',
+    fontSize: 12,
+    fontWeight: '600',
+    minWidth: 36,
+    textAlign: 'right',
+  },
+  dragBtn: {
+    padding: 8,
+  },
   removeBtn: {
     padding: 8,
   },

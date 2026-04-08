@@ -63,6 +63,116 @@ function getTrackDedupKey(track: Track): string {
   return `${normalizedTitle}::${normalizedArtist}::${roundedDurationMs}`;
 }
 
+function getParentDirectory(uri: string): string {
+  const normalizedUri = uri.toLowerCase();
+  const lastSlashIndex = normalizedUri.lastIndexOf("/");
+  return lastSlashIndex === -1 ? normalizedUri : normalizedUri.slice(0, lastSlashIndex);
+}
+
+function getRoundedSeconds(timestampMs?: number): number {
+  if (!timestampMs) return 0;
+  return Math.round(timestampMs / 1000);
+}
+
+function getTrackMatchKeys(track: Track) {
+  const roundedDurationMs = Math.round(track.duration / 1000) * 1000;
+  const normalizedTitle = normalizeText(track.title);
+  const normalizedArtist = normalizeText(track.artist);
+
+  return {
+    uri: track.uri.toLowerCase(),
+    metadata: `${normalizedTitle}::${normalizedArtist}::${roundedDurationMs}`,
+    creationAndDuration: `${getRoundedSeconds(track.creationTime)}::${roundedDurationMs}`,
+    directoryCreationAndDuration: `${getParentDirectory(track.uri)}::${getRoundedSeconds(track.creationTime)}::${roundedDurationMs}`,
+  };
+}
+
+function indexTracksByKey(
+  tracks: Track[],
+  selectKey: (track: Track) => string,
+): Map<string, Track[]> {
+  const indexed = new Map<string, Track[]>();
+
+  tracks.forEach((track) => {
+    const key = selectKey(track);
+    const existing = indexed.get(key);
+
+    if (existing) {
+      existing.push(track);
+    } else {
+      indexed.set(key, [track]);
+    }
+  });
+
+  return indexed;
+}
+
+function buildTrackAliases(previousTracks: Track[], nextTracks: Track[]): Record<string, string> {
+  const aliases: Record<string, string> = {};
+  const nextTrackById = new Map(nextTracks.map((track) => [track.id, track]));
+  const claimedIds = new Set<string>();
+  const remainingPreviousTracks: Track[] = [];
+
+  previousTracks.forEach((track) => {
+    if (nextTrackById.has(track.id)) {
+      aliases[track.id] = track.id;
+      claimedIds.add(track.id);
+      return;
+    }
+
+    remainingPreviousTracks.push(track);
+  });
+
+  const nextTracksByUri = indexTracksByKey(nextTracks, (track) => getTrackMatchKeys(track).uri);
+  const nextTracksByDirectoryCreationAndDuration = indexTracksByKey(
+    nextTracks,
+    (track) => getTrackMatchKeys(track).directoryCreationAndDuration,
+  );
+  const nextTracksByCreationAndDuration = indexTracksByKey(
+    nextTracks,
+    (track) => getTrackMatchKeys(track).creationAndDuration,
+  );
+  const nextTracksByMetadata = indexTracksByKey(
+    nextTracks,
+    (track) => getTrackMatchKeys(track).metadata,
+  );
+
+  const claimTrack = (candidates: Track[] | undefined) => {
+    const availableTrack = candidates?.find((track) => !claimedIds.has(track.id));
+    if (!availableTrack) return null;
+
+    claimedIds.add(availableTrack.id);
+    return availableTrack;
+  };
+
+  const matchers = [
+    (track: Track) => claimTrack(nextTracksByUri.get(getTrackMatchKeys(track).uri)),
+    (track: Track) =>
+      claimTrack(
+        nextTracksByDirectoryCreationAndDuration.get(
+          getTrackMatchKeys(track).directoryCreationAndDuration,
+        ),
+      ),
+    (track: Track) =>
+      claimTrack(
+        nextTracksByCreationAndDuration.get(getTrackMatchKeys(track).creationAndDuration),
+      ),
+    (track: Track) => claimTrack(nextTracksByMetadata.get(getTrackMatchKeys(track).metadata)),
+  ];
+
+  remainingPreviousTracks.forEach((track) => {
+    for (const matchTrack of matchers) {
+      const matchedTrack = matchTrack(track);
+      if (!matchedTrack) continue;
+
+      aliases[track.id] = matchedTrack.id;
+      break;
+    }
+  });
+
+  return aliases;
+}
+
 interface UseMediaLibraryResult {
   tracks: Track[];
   isLoading: boolean;
@@ -73,7 +183,7 @@ interface UseMediaLibraryResult {
 }
 
 export function useMediaLibrary(): UseMediaLibraryResult {
-  const setLibraryTracks = usePlayerStore((s) => s.setLibraryTracks);
+  const reconcileLibraryTracks = usePlayerStore((s) => s.reconcileLibraryTracks);
   const [tracks, setTracks] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -130,6 +240,9 @@ export function useMediaLibrary(): UseMediaLibraryResult {
           artist,
           duration: asset.duration * 1000,
           album: asset.albumId,
+          filename: asset.filename,
+          creationTime: asset.creationTime,
+          modificationTime: asset.modificationTime,
         };
       });
 
@@ -137,8 +250,17 @@ export function useMediaLibrary(): UseMediaLibraryResult {
         new Map(formattedTracks.map((track) => [getTrackDedupKey(track), track])).values(),
       );
 
+      const previousState = usePlayerStore.getState();
+      const previousTracks = [
+        ...previousState.libraryTracks,
+        ...previousState.queue,
+        ...previousState.lastQueue,
+        ...previousState.playlists.flatMap((playlist) => playlist.tracks),
+      ];
+      const aliases = buildTrackAliases(previousTracks, dedupedTracks);
+
       setTracks(dedupedTracks);
-      setLibraryTracks(dedupedTracks);
+      reconcileLibraryTracks(dedupedTracks, aliases);
     } catch (e) {
       setError("음악 목록을 불러오는데 실패했습니다.");
     } finally {
@@ -156,7 +278,7 @@ export function useMediaLibrary(): UseMediaLibraryResult {
         await loadTracks();
       }
     })();
-  }, [setLibraryTracks]);
+  }, [reconcileLibraryTracks]);
 
   return {
     tracks,

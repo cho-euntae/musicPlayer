@@ -9,8 +9,14 @@ import { Controls } from '@/components/player/controls';
 
 export default function PlayerScreen() {
   const currentTrack = useCurrentTrack();
-  const { isPlaying, position, duration, playNext, playPrev } = usePlayerStore();
+  const { isPlaying, position, duration, playNext, playPrev, repeatMode, toggleRepeat } =
+    usePlayerStore();
   const { togglePlay, seekTo } = useAudioControl();
+
+  const repeatLabel =
+    repeatMode === 'one' ? '1곡 반복' : repeatMode === 'all' ? '전체 반복' : '반복 끔';
+  const repeatIcon = repeatMode === 'off' ? 'repeat-outline' : 'repeat';
+  const repeatActive = repeatMode !== 'off';
 
   if (!currentTrack) {
     return (
@@ -28,9 +34,29 @@ export default function PlayerScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-        <Ionicons name="chevron-down" size={28} color="#fff" />
-      </TouchableOpacity>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
+          <Ionicons name="chevron-down" size={28} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.repeatBtn, repeatActive && styles.repeatBtnActive]}
+          onPress={toggleRepeat}
+        >
+          <Ionicons
+            name={repeatIcon}
+            size={18}
+            color={repeatActive ? '#041107' : '#fff'}
+          />
+          <Text
+            style={[
+              styles.repeatBtnText,
+              repeatActive && styles.repeatBtnTextActive,
+            ]}
+          >
+            {repeatLabel}
+          </Text>
+        </TouchableOpacity>
+      </View>
 
       {/* 앨범 아트 */}
       <View style={styles.artwork}>
@@ -71,8 +97,36 @@ const styles = StyleSheet.create({
     padding: 24,
     gap: 24,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   closeBtn: {
-    alignSelf: 'center',
+    padding: 4,
+  },
+  repeatBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: '#1e1e1e',
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+  },
+  repeatBtnActive: {
+    backgroundColor: '#d7ffe2',
+    borderColor: '#d7ffe2',
+  },
+  repeatBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  repeatBtnTextActive: {
+    color: '#041107',
   },
   artwork: {
     aspectRatio: 1,

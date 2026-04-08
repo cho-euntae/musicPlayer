@@ -10,6 +10,9 @@ export interface Track {
   album?: string;
   duration: number; // milliseconds
   artwork?: string;
+  filename?: string;
+  creationTime?: number;
+  modificationTime?: number;
 }
 
 export interface Playlist {
@@ -42,6 +45,9 @@ interface PlayerState {
   // 최근 재생 (track id 목록, 최대 50개)
   recentlyPlayed: string[];
 
+  // 재생 횟수
+  trackPlayCounts: Record<string, number>;
+
   // 커스텀 플레이리스트
   playlists: Playlist[];
 
@@ -53,6 +59,7 @@ interface PlayerState {
 
   // 재생 액션
   setLibraryTracks: (tracks: Track[]) => void;
+  reconcileLibraryTracks: (tracks: Track[], aliases: Record<string, string>) => void;
   setQueue: (tracks: Track[], startIndex?: number) => void;
   restoreQueue: (tracks: Track[], startIndex: number, positionMs: number) => void;
   setCurrentIndex: (index: number) => void;
@@ -61,6 +68,7 @@ interface PlayerState {
   setDuration: (duration: number) => void;
   toggleShuffle: () => void;
   toggleRepeat: () => void;
+  toggleRepeatOne: () => void;
   playNext: () => void;
   playPrev: () => void;
   addTrackToNextInQueue: (track: Track) => void;
@@ -73,6 +81,7 @@ interface PlayerState {
 
   // 최근 재생 액션
   addToRecentlyPlayed: (trackId: string) => void;
+  incrementTrackPlayCount: (trackId: string) => void;
 
   // 마지막 재생 상태 저장
   savePlaybackState: (positionMs: number) => void;
@@ -84,6 +93,7 @@ interface PlayerState {
   renamePlaylist: (id: string, name: string) => void;
   addTrackToPlaylist: (playlistId: string, track: Track) => void;
   removeTrackFromPlaylist: (playlistId: string, trackId: string) => void;
+  moveTrackInPlaylist: (playlistId: string, fromIndex: number, toIndex: number) => void;
 }
 
 export const usePlayerStore = create<PlayerState>()(
@@ -99,6 +109,7 @@ export const usePlayerStore = create<PlayerState>()(
       repeatMode: 'off',
       favorites: [],
       recentlyPlayed: [],
+      trackPlayCounts: {},
       playlists: [],
       lastQueue: [],
       lastTrackIndex: 0,
@@ -106,6 +117,44 @@ export const usePlayerStore = create<PlayerState>()(
       pendingSeekPosition: null,
 
       setLibraryTracks: (tracks) => set({ libraryTracks: tracks }),
+
+      reconcileLibraryTracks: (tracks, aliases) =>
+        set((s) => {
+          const trackById = new Map(tracks.map((track) => [track.id, track]));
+          const remapId = (id: string) => aliases[id] ?? id;
+          const dedupeIds = (ids: string[]) => Array.from(new Set(ids));
+          const reconcileTrack = (track: Track) => trackById.get(remapId(track.id)) ?? track;
+
+          const nextFavorites = dedupeIds(
+            s.favorites
+              .map(remapId)
+              .filter((trackId) => trackById.has(trackId))
+          );
+
+          const nextRecentlyPlayed = dedupeIds(
+            s.recentlyPlayed
+              .map(remapId)
+              .filter((trackId) => trackById.has(trackId))
+          ).slice(0, 50);
+
+          const nextQueue = s.queue.map(reconcileTrack);
+          const nextLastQueue = s.lastQueue.map(reconcileTrack);
+
+          return {
+            libraryTracks: tracks,
+            favorites: nextFavorites,
+            recentlyPlayed: nextRecentlyPlayed,
+            playlists: s.playlists.map((playlist) => ({
+              ...playlist,
+              tracks: playlist.tracks.map(reconcileTrack),
+            })),
+            queue: nextQueue,
+            currentIndex: nextQueue.length === 0 ? 0 : Math.min(s.currentIndex, nextQueue.length - 1),
+            lastQueue: nextLastQueue,
+            lastTrackIndex:
+              nextLastQueue.length === 0 ? 0 : Math.min(s.lastTrackIndex, nextLastQueue.length - 1),
+          };
+        }),
 
       setQueue: (tracks, startIndex = 0) =>
         set({
@@ -115,7 +164,7 @@ export const usePlayerStore = create<PlayerState>()(
           lastQueue: tracks,
           lastTrackIndex: startIndex,
           lastPosition: 0,
-          pendingSeekPosition: null,
+          pendingSeekPosition: 0,
         }),
 
       restoreQueue: (tracks, startIndex, positionMs) =>
@@ -144,6 +193,11 @@ export const usePlayerStore = create<PlayerState>()(
         set((s) => ({
           repeatMode:
             s.repeatMode === 'off' ? 'all' : s.repeatMode === 'all' ? 'one' : 'off',
+        })),
+
+      toggleRepeatOne: () =>
+        set((s) => ({
+          repeatMode: s.repeatMode === 'one' ? 'off' : 'one',
         })),
 
       playNext: () => {
@@ -300,6 +354,14 @@ export const usePlayerStore = create<PlayerState>()(
           return { recentlyPlayed: [trackId, ...filtered].slice(0, 50) };
         }),
 
+      incrementTrackPlayCount: (trackId) =>
+        set((s) => ({
+          trackPlayCounts: {
+            ...s.trackPlayCounts,
+            [trackId]: (s.trackPlayCounts[trackId] ?? 0) + 1,
+          },
+        })),
+
       savePlaybackState: (positionMs) =>
         set((s) => ({ lastPosition: positionMs, lastTrackIndex: s.currentIndex })),
 
@@ -341,6 +403,34 @@ export const usePlayerStore = create<PlayerState>()(
               : p
           ),
         })),
+
+      moveTrackInPlaylist: (playlistId, fromIndex, toIndex) =>
+        set((s) => ({
+          playlists: s.playlists.map((playlist) => {
+            if (playlist.id !== playlistId) {
+              return playlist;
+            }
+
+            if (
+              fromIndex === toIndex ||
+              fromIndex < 0 ||
+              toIndex < 0 ||
+              fromIndex >= playlist.tracks.length ||
+              toIndex >= playlist.tracks.length
+            ) {
+              return playlist;
+            }
+
+            const nextTracks = [...playlist.tracks];
+            const [movedTrack] = nextTracks.splice(fromIndex, 1);
+            nextTracks.splice(toIndex, 0, movedTrack);
+
+            return {
+              ...playlist,
+              tracks: nextTracks,
+            };
+          }),
+        })),
     }),
     {
       name: 'music-player-storage',
@@ -348,10 +438,12 @@ export const usePlayerStore = create<PlayerState>()(
       storage: createJSONStorage(() => AsyncStorage),
       // 재생 상태(position, isPlaying)는 저장 불필요
       partialize: (s) => ({
+        libraryTracks: s.libraryTracks,
         isShuffled: s.isShuffled,
         repeatMode: s.repeatMode,
         favorites: s.favorites,
         recentlyPlayed: s.recentlyPlayed,
+        trackPlayCounts: s.trackPlayCounts,
         playlists: s.playlists,
         lastQueue: s.lastQueue,
         lastTrackIndex: s.lastTrackIndex,

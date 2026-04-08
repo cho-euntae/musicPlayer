@@ -85,6 +85,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     setPosition,
     setDuration,
     addToRecentlyPlayed,
+    incrementTrackPlayCount,
     savePlaybackState,
     pendingSeekPosition,
     clearPendingSeekPosition,
@@ -95,6 +96,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const setupPromiseRef = useRef<Promise<void> | null>(null);
   const syncedQueueSignatureRef = useRef('');
   const latestProgressRef = useRef(0);
+  const lastCountedTrackIdRef = useRef<string | null>(null);
   const queueSignature = queue.map((track) => `${track.id}:${track.uri}`).join('|');
 
   const ensurePlayerSetup = useCallback(async () => {
@@ -219,6 +221,10 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
         await TrackPlayer.skip(targetIndex, restorePositionSeconds);
 
+        if (usePlayerStore.getState().isPlaying) {
+          await TrackPlayer.play();
+        }
+
         if (pendingSeekPosition !== null) {
           clearPendingSeekPosition();
         }
@@ -229,6 +235,10 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       const activeIndex = await TrackPlayer.getActiveTrackIndex();
       if (activeIndex !== targetIndex) {
         await TrackPlayer.skip(targetIndex, 0);
+
+        if (usePlayerStore.getState().isPlaying) {
+          await TrackPlayer.play();
+        }
       }
     })();
 
@@ -292,11 +302,17 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (!currentTrack) {
+      lastCountedTrackIdRef.current = null;
       return;
     }
 
     addToRecentlyPlayed(currentTrack.id);
-  }, [addToRecentlyPlayed, currentTrack?.id]);
+
+    if (lastCountedTrackIdRef.current !== currentTrack.id) {
+      incrementTrackPlayCount(currentTrack.id);
+      lastCountedTrackIdRef.current = currentTrack.id;
+    }
+  }, [addToRecentlyPlayed, currentTrack?.id, incrementTrackPlayCount]);
 
   useEffect(() => {
     if (!isPlaying) {
