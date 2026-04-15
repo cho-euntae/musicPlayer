@@ -7,6 +7,10 @@ declare global {
 }
 
 if (!globalThis.__musicPlayerTrackServiceRegistered) {
-  TrackPlayer.registerPlaybackService(() => playbackService);
-  globalThis.__musicPlayerTrackServiceRegistered = true;
+  try {
+    TrackPlayer.registerPlaybackService(() => playbackService);
+    globalThis.__musicPlayerTrackServiceRegistered = true;
+  } catch (error) {
+    console.error('[TrackPlayer] registerPlaybackService failed', error);
+  }
 }

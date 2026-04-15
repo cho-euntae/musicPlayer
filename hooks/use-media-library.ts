@@ -191,12 +191,17 @@ export function useMediaLibrary(): UseMediaLibraryResult {
     useState<MediaLibrary.PermissionStatus | null>(null);
 
   const requestPermission = async () => {
-    const { status } = await MediaLibrary.requestPermissionsAsync(false, [
-      "audio",
-    ]);
-    setPermissionStatus(status);
-    if (status === "granted") {
-      await loadTracks();
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync(false, [
+        "audio",
+      ]);
+      setPermissionStatus(status);
+      if (status === "granted") {
+        await loadTracks();
+      }
+    } catch (e) {
+      console.error("[useMediaLibrary] requestPermission failed", e);
+      setError("권한 요청에 실패했습니다.");
     }
   };
 
@@ -270,12 +275,17 @@ export function useMediaLibrary(): UseMediaLibraryResult {
 
   useEffect(() => {
     (async () => {
-      const { status } = await MediaLibrary.getPermissionsAsync(false, [
-        "audio",
-      ]);
-      setPermissionStatus(status);
-      if (status === "granted") {
-        await loadTracks();
+      try {
+        const { status } = await MediaLibrary.getPermissionsAsync(false, [
+          "audio",
+        ]);
+        setPermissionStatus(status);
+        if (status === "granted") {
+          await loadTracks();
+        }
+      } catch (e) {
+        console.error("[useMediaLibrary] initial permission check failed", e);
+        setError("미디어 라이브러리 접근에 실패했습니다.");
       }
     })();
   }, [reconcileLibraryTracks]);

@@ -39,6 +39,18 @@ function isPlaybackActive(state: State | undefined) {
   return state === State.Playing || state === State.Buffering;
 }
 
+function logTrackPlayerError(scope: string, error: unknown) {
+  console.error(`[AudioPlayer] ${scope}`, error);
+}
+
+async function safeTrackPlayerCall(scope: string, task: () => Promise<void>) {
+  try {
+    await task();
+  } catch (error) {
+    logTrackPlayerError(scope, error);
+  }
+}
+
 function mapRepeatMode(mode: 'off' | 'all' | 'one') {
   switch (mode) {
     case 'all':
@@ -169,7 +181,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   }, [ensurePlayerSetup, setDuration, setIsPlaying, setPosition]);
 
   useEffect(() => {
-    void ensurePlayerSetup();
+    void safeTrackPlayerCall('ensurePlayerSetup', ensurePlayerSetup);
   }, [ensurePlayerSetup]);
 
   useEffect(() => {
@@ -183,16 +195,16 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   }, [playbackState.state, setIsPlaying]);
 
   useEffect(() => {
-    void (async () => {
+    void safeTrackPlayerCall('setRepeatMode', async () => {
       await ensurePlayerSetup();
       await TrackPlayer.setRepeatMode(mapRepeatMode(repeatMode));
-    })();
+    });
   }, [ensurePlayerSetup, repeatMode]);
 
   useEffect(() => {
     let isCancelled = false;
 
-    void (async () => {
+    void safeTrackPlayerCall('syncQueue', async () => {
       await ensurePlayerSetup();
 
       if (isCancelled) {
@@ -240,7 +252,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
           await TrackPlayer.play();
         }
       }
-    })();
+    });
 
     return () => {
       isCancelled = true;
@@ -257,7 +269,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   ]);
 
   useEffect(() => {
-    void (async () => {
+    void safeTrackPlayerCall('syncPlaybackState', async () => {
       await ensurePlayerSetup();
 
       if (queue.length === 0) {
@@ -272,7 +284,7 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
       } else if (!isPlaying && playingNow) {
         await TrackPlayer.pause();
       }
-    })();
+    });
   }, [ensurePlayerSetup, isPlaying, queue.length]);
 
   useTrackPlayerEvents([Event.PlaybackActiveTrackChanged], (event) => {
@@ -287,11 +299,11 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   });
 
   useEffect(() => {
-    void syncFromTrackPlayer();
+    void safeTrackPlayerCall('syncFromTrackPlayer:onMount', syncFromTrackPlayer);
 
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') {
-        void syncFromTrackPlayer();
+        void safeTrackPlayerCall('syncFromTrackPlayer:onActive', syncFromTrackPlayer);
       }
     });
 
@@ -332,7 +344,9 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   }, []);
 
   const seekTo = useCallback((positionMs: number) => {
-    void TrackPlayer.seekTo(positionMs / 1000);
+    void safeTrackPlayerCall('seekTo', async () => {
+      await TrackPlayer.seekTo(positionMs / 1000);
+    });
   }, []);
 
   return (
