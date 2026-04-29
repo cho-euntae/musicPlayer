@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import fuzzysort from 'fuzzysort';
 import { useMediaLibrary } from '@/hooks/use-media-library';
 import { useDebounce } from '@/hooks/use-debounce';
 import { TrackItem } from '@/components/track-item';
@@ -45,6 +46,25 @@ function sortTracks(
   }
 }
 
+// fuzzysort: title > artist > album 우선순위로 가중치를 다르게 줘 매치 품질을
+// 끌어올린다. 검색 결과는 score 기준 정렬되어 사용자의 sort 모드와 분리됨.
+function fuzzyFilter(tracks: readonly Track[], rawQuery: string): Track[] {
+  const query = rawQuery.trim();
+  if (!query) return [...tracks];
+  const results = fuzzysort.go(query, tracks, {
+    keys: ['title', 'artist', 'album'],
+    threshold: -10000,
+    limit: 500,
+    // 첫 번째 키(title)에 더 높은 가중치를 주어 제목 매치를 우선.
+    scoreFn: (a) => Math.max(
+      a[0] ? a[0].score : -Infinity,
+      a[1] ? a[1].score - 100 : -Infinity,
+      a[2] ? a[2].score - 200 : -Infinity,
+    ),
+  });
+  return results.map((r) => r.obj);
+}
+
 export default function LibraryScreen() {
   const { isLoading, error, permissionStatus, requestPermission, refresh } = useMediaLibrary();
   const tracks = usePlayerStore((s) => s.libraryTracks);
@@ -65,15 +85,12 @@ export default function LibraryScreen() {
   const [pickerVisible, setPickerVisible] = useState(false);
 
   const filteredTracks = useMemo(() => {
-    const sorted = sortTracks(tracks, sortMode, playCounts);
-    const query = debouncedQuery.trim().toLowerCase();
-    if (!query) return sorted;
-    return sorted.filter(
-      (t) =>
-        t.title.toLowerCase().includes(query) ||
-        (t.artist ?? '').toLowerCase().includes(query) ||
-        (t.album ?? '').toLowerCase().includes(query),
-    );
+    // 검색어가 없으면 사용자 sort 모드를 따르고,
+    // 있으면 fuzzysort 점수 순으로 정렬한다.
+    if (!debouncedQuery.trim()) {
+      return sortTracks(tracks, sortMode, playCounts);
+    }
+    return fuzzyFilter(tracks, debouncedQuery);
   }, [tracks, sortMode, playCounts, debouncedQuery]);
 
   const selectedTracks = useMemo(
