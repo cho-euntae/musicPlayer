@@ -1,6 +1,19 @@
 # Music Player
 
-로컬 음악 파일을 재생하는 Android 앱 (React Native + Expo)
+로컬 음악 파일을 재생하는 Android 앱 (React Native + Expo).
+
+## 주요 기능
+
+- 기기 오디오 라이브러리 스캔(통화 녹음 필터, 재스캔 시 ID/URI/파일명 변경 복원)
+- 풀스크린 플레이어 + 미니 플레이어 + 락스크린/알림 미디어 컨트롤
+- 셔플, 반복(off / 전체 / 한 곡), 시크바, 슬립 타이머, 0.75x~2.0x 재생 속도
+- 큐 편집(순서 변경, 우선 재생, 큐를 플레이리스트로 저장)
+- 즐겨찾기 / 최근 재생 / 커스텀 플레이리스트(드래그 정렬, 이름 변경, 다중 선택 추가)
+- 검색(debounce), 정렬 칩(이름/최신/재생순)
+- 설정 화면(통화녹음 숨김 토글, 최근 재생 한도, 기본 정렬, 테마)
+- 마지막 재생 큐/위치 5초마다 저장 → 앱 재시작 시 복원
+
+자세한 진행 현황은 [PROGRESS.md](./PROGRESS.md) 참고.
 
 ---
 
@@ -17,26 +30,42 @@
 ## 프로젝트 구조
 
 ```
+index.js                     # 엔트리 — TrackPlayer playback service 등록 후 expo-router 부팅
+                             # (헤드리스 알림 액션 시에도 RemotePause/Play 핸들러가 살아 있도록)
+
 app/
-├── _layout.tsx              # 루트 레이아웃
-├── player.tsx               # 풀스크린 플레이어 (모달)
-├── playlist/[id].tsx        # 플레이리스트 상세
+├── _layout.tsx              # 루트 레이아웃 (Stack)
+├── player.tsx               # 풀스크린 플레이어 (모달, 슬립 타이머/속도 조절 칩 포함)
+├── queue.tsx                # 현재 재생 큐 화면 (순서 변경 / 제거 / 큐를 플레이리스트로 저장)
+├── settings.tsx             # 설정 (통화녹음 숨김 / 최근 재생 한도 / 기본 정렬 / 테마)
+├── playlist/[id].tsx        # 플레이리스트 상세 (즐겨찾기·최근 재생·커스텀)
 └── (tabs)/
     ├── _layout.tsx          # 탭바 + 미니 플레이어
-    ├── index.tsx            # Home 화면
-    ├── library.tsx          # Library (기기 음악 목록)
-    └── playlists.tsx        # Playlists
+    ├── index.tsx            # Home (재생 중심, 큐/설정 진입점)
+    ├── library.tsx          # Library (검색 + 정렬 칩 + 빈 상태 카드)
+    └── playlists.tsx        # Playlists (자동 + 커스텀)
 
 store/
-└── player-store.ts          # 재생 상태 (큐, 셔플, 반복 등)
+└── player-store.ts          # Zustand persist (큐, 셔플, 반복, 즐겨찾기, 설정 등)
+
+context/
+└── audio-player-context.tsx # TrackPlayer 셋업 + 큐 동기화 + togglePlay/seekTo
+
+services/
+├── playback-service.ts      # RemotePlay/Pause/Next/Previous/Seek + PlaybackError 핸들러
+└── register-track-player.ts # registerPlaybackService 가드 + 등록
 
 hooks/
-├── use-media-library.ts     # 기기 음악 목록 로드
-└── use-audio-player.ts      # 오디오 재생 제어
+├── use-media-library.ts     # 기기 오디오 스캔 (앱 단위 1회), 통화녹음 필터, refresh
+└── use-debounce.ts          # 검색 입력 debounce
 
 components/
-├── track-item.tsx           # 트랙 목록 아이템
+├── track-item.tsx           # 트랙 목록 아이템 (즐겨찾기 표시, ⋮ 메뉴, 다중 선택 지원)
 ├── mini-player.tsx          # 탭바 위 미니 플레이어
+├── track-options-modal.tsx  # 트랙 옵션 바텀 시트 (다음에 재생 등)
+├── playlist-picker-modal.tsx # 다중 선택 → 플레이리스트 추가
+├── text-input-modal.tsx     # 이름 입력 공용 (플레이리스트 이름 변경 / 큐 저장)
+├── options-sheet-modal.tsx  # 옵션 선택 공용 (슬립 타이머 / 재생 속도 / 설정 모달)
 └── player/
     ├── progress-bar.tsx     # 시크 가능한 진행 바
     └── controls.tsx         # 재생/이전/다음/셔플/반복 버튼
