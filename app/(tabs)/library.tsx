@@ -46,7 +46,7 @@ function sortTracks(
 }
 
 export default function LibraryScreen() {
-  const { isLoading, error, permissionStatus, requestPermission } = useMediaLibrary();
+  const { isLoading, error, permissionStatus, requestPermission, refresh } = useMediaLibrary();
   const tracks = usePlayerStore((s) => s.libraryTracks);
   const sortMode = usePlayerStore((s) => s.librarySortMode);
   const playCounts = usePlayerStore((s) => s.trackPlayCounts);
@@ -148,13 +148,9 @@ export default function LibraryScreen() {
     );
   }
 
-  if (error) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <Text style={styles.error}>{error}</Text>
-      </SafeAreaView>
-    );
-  }
+  const handleRefresh = () => {
+    void refresh();
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -222,7 +218,39 @@ export default function LibraryScreen() {
       )}
 
       {/* 트랙 목록 */}
-      {filteredTracks.length === 0 && debouncedQuery.trim() !== '' ? (
+      {error ? (
+        <View style={styles.emptyBox}>
+          <View style={[styles.emptyIconWrap, { backgroundColor: '#1f1313' }]}>
+            <Ionicons name="alert-circle-outline" size={44} color="#e57373" />
+          </View>
+          <Text style={styles.emptyTitle}>음악을 불러오지 못했습니다</Text>
+          <Text style={styles.emptyText}>{error}</Text>
+          <TouchableOpacity style={styles.emptyActionBtn} onPress={handleRefresh}>
+            <Text style={styles.emptyActionText}>다시 시도</Text>
+          </TouchableOpacity>
+        </View>
+      ) : tracks.length === 0 ? (
+        <View style={styles.emptyBox}>
+          <View style={styles.emptyIconWrap}>
+            <Ionicons name="musical-notes-outline" size={44} color="#4d7b5d" />
+          </View>
+          <Text style={styles.emptyTitle}>기기에서 음악을 찾지 못했습니다</Text>
+          <Text style={styles.emptyText}>
+            기기 저장소에 오디오 파일이 없거나 아직 인덱싱되지 않았을 수 있습니다.
+          </Text>
+          <TouchableOpacity
+            style={styles.emptyActionBtn}
+            onPress={handleRefresh}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#071109" />
+            ) : (
+              <Text style={styles.emptyActionText}>다시 스캔</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      ) : filteredTracks.length === 0 && debouncedQuery.trim() !== '' ? (
         <View style={styles.emptyBox}>
           <View style={styles.emptyIconWrap}>
             <Ionicons name="search-outline" size={44} color="#4d7b5d" />

@@ -83,10 +83,20 @@ export default function QueueScreen() {
       </View>
 
       {queue.length === 0 ? (
-        <View style={styles.empty}>
-          <Ionicons name="list-outline" size={56} color="#444" />
+        <View style={styles.emptyBox}>
+          <View style={styles.emptyIconWrap}>
+            <Ionicons name="list-outline" size={44} color="#5d8f6d" />
+          </View>
           <Text style={styles.emptyTitle}>재생 대기 중인 곡이 없습니다</Text>
-          <Text style={styles.emptyText}>라이브러리에서 곡을 선택하면 여기서 순서를 확인할 수 있습니다.</Text>
+          <Text style={styles.emptyText}>
+            라이브러리에서 곡을 선택하면 여기서 순서를 확인할 수 있습니다.
+          </Text>
+          <TouchableOpacity
+            style={styles.emptyActionBtn}
+            onPress={() => router.replace('/library')}
+          >
+            <Text style={styles.emptyActionText}>라이브러리 열기</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
@@ -237,23 +247,49 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  empty: {
+  emptyBox: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
+    marginHorizontal: 16,
+    marginVertical: 24,
+    padding: 28,
     gap: 12,
+    borderRadius: 24,
+    backgroundColor: '#171a18',
+    borderWidth: 1,
+    borderColor: '#232825',
+  },
+  emptyIconWrap: {
+    width: 88,
+    height: 88,
+    borderRadius: 20,
+    backgroundColor: '#111412',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyTitle: {
     color: '#fff',
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     textAlign: 'center',
   },
   emptyText: {
-    color: '#666',
+    color: '#6f7a73',
     fontSize: 14,
-    lineHeight: 21,
     textAlign: 'center',
+    lineHeight: 21,
+  },
+  emptyActionBtn: {
+    marginTop: 4,
+    backgroundColor: '#1DB954',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 11,
+  },
+  emptyActionText: {
+    color: '#071109',
+    fontSize: 14,
+    fontWeight: '800',
   },
 });
