@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Dimensions, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { useAudioControl } from '@/context/audio-player-context';
 import { ProgressBar } from '@/components/player/progress-bar';
 import { Controls } from '@/components/player/controls';
 import { OptionsSheetModal } from '@/components/options-sheet-modal';
+import { TrackArtwork } from '@/components/track-artwork';
 
 const SLEEP_TIMER_OPTIONS = [
   { value: 0, label: '타이머 끄기' },
@@ -26,6 +27,11 @@ const PLAYBACK_RATE_OPTIONS = [
   { value: 1.75, label: '1.75×' },
   { value: 2.0, label: '2×', hint: '매우 빠르게' },
 ];
+
+// 컨테이너 padding(24) * 2 + 좌우 여백을 고려해 화면 너비에서 빼고,
+// 너무 큰 화면에서는 320px 이상으로 키우지 않도록 클램프한다.
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const ARTWORK_SIZE = Math.min(SCREEN_WIDTH - 48, 320);
 
 function formatRemaining(ms: number): string {
   if (ms <= 0) return '';
@@ -119,8 +125,14 @@ export default function PlayerScreen() {
       </View>
 
       {/* 앨범 아트 */}
-      <View style={styles.artwork}>
-        <Ionicons name="musical-note" size={80} color="#1DB954" />
+      <View style={styles.artworkWrap}>
+        <TrackArtwork
+          artwork={currentTrack.artwork}
+          title={currentTrack.title}
+          trackId={currentTrack.id}
+          size={ARTWORK_SIZE}
+          borderRadius={16}
+        />
       </View>
 
       {/* 트랙 정보 */}
@@ -249,11 +261,7 @@ const styles = StyleSheet.create({
   pillBtnTextActive: {
     color: '#041107',
   },
-  artwork: {
-    aspectRatio: 1,
-    borderRadius: 16,
-    backgroundColor: '#1a1a1a',
-    justifyContent: 'center',
+  artworkWrap: {
     alignItems: 'center',
     marginVertical: 8,
   },

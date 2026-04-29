@@ -1,6 +1,7 @@
 import { Track, usePlayerStore } from "@/store/player-store";
 import * as MediaLibrary from "expo-media-library";
 import { useCallback, useEffect, useState } from "react";
+import { Platform } from "react-native";
 
 // 갤럭시 통화 녹음 폴더 패턴
 const CALL_RECORDING_PATTERNS = [
@@ -225,12 +226,21 @@ async function runLibraryScan(): Promise<void> {
       const formattedTracks: Track[] = filteredAssets.map((asset) => {
         const { title, artist } = parseTrackMetadata(asset.filename);
 
+        // Android는 albumId가 있으면 미디어스토어가 노출하는 표준 albumart
+        // content URI를 통해 임베디드/앨범 단위 아트워크에 접근할 수 있다.
+        // 실제로 아트워크가 없는 경우 Image.onError에서 fallback을 그리도록 처리.
+        const artwork =
+          Platform.OS === "android" && asset.albumId
+            ? `content://media/external/audio/albumart/${asset.albumId}`
+            : undefined;
+
         return {
           id: asset.id,
           uri: asset.uri,
           title,
           artist,
           duration: asset.duration * 1000,
+          artwork,
           album: asset.albumId,
           filename: asset.filename,
           creationTime: asset.creationTime,

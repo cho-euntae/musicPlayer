@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useCurrentTrack, usePlayerStore } from '@/store/player-store';
 import { useAudioControl } from '@/context/audio-player-context';
+import { TrackArtwork } from '@/components/track-artwork';
 
 export function MiniPlayer() {
   const currentTrack = useCurrentTrack();
@@ -18,9 +19,13 @@ export function MiniPlayer() {
       onPress={() => router.push('/player')}
       activeOpacity={0.95}
     >
-      <View style={styles.artwork}>
-        <Ionicons name="musical-note" size={18} color="#1DB954" />
-      </View>
+      <TrackArtwork
+        artwork={currentTrack.artwork}
+        title={currentTrack.title}
+        trackId={currentTrack.id}
+        size={38}
+        borderRadius={6}
+      />
       <View style={styles.info}>
         <Text style={styles.title} numberOfLines={1}>
           {currentTrack.title}
@@ -59,14 +64,6 @@ const styles = StyleSheet.create({
     gap: 10,
     borderWidth: 1,
     borderColor: '#2a2a2a',
-  },
-  artwork: {
-    width: 38,
-    height: 38,
-    borderRadius: 6,
-    backgroundColor: '#2a2a2a',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   info: {
     flex: 1,

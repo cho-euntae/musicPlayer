@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Track, usePlayerStore } from '@/store/player-store';
 import { TrackOptionsModal } from '@/components/track-options-modal';
+import { TrackArtwork } from '@/components/track-artwork';
 
 interface TrackItemProps {
   track: Track;
@@ -41,9 +42,14 @@ export function TrackItem({
             {isSelected && <Ionicons name="checkmark" size={16} color="#000" />}
           </View>
         ) : (
-          <View style={[styles.artwork, isActive && styles.artworkActive]}>
-            <Ionicons name="musical-note" size={20} color={isActive ? '#1DB954' : '#888'} />
-          </View>
+          <TrackArtwork
+            artwork={track.artwork}
+            title={track.title}
+            trackId={track.id}
+            size={44}
+            borderRadius={6}
+            active={isActive}
+          />
         )}
 
         <View style={styles.info}>
@@ -91,12 +97,6 @@ const styles = StyleSheet.create({
   containerSelected: {
     backgroundColor: '#1a2a1a',
   },
-  artwork: {
-    width: 44, height: 44, borderRadius: 6,
-    backgroundColor: '#2a2a2a',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  artworkActive: { backgroundColor: '#1a3a2a' },
   checkbox: {
     width: 24, height: 24, borderRadius: 12,
     borderWidth: 2, borderColor: '#555',
