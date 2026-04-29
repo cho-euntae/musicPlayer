@@ -12,6 +12,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -137,6 +138,13 @@ export function MiniPlayer() {
           onPress={() => router.push('/player')}
           activeOpacity={0.95}
         >
+          {/* 프로스티드 글래스 배경: 컨테이너 안쪽을 가득 채우는 BlurView */}
+          <BlurView
+            intensity={45}
+            tint="dark"
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
           <TrackArtwork
             artwork={currentTrack.artwork}
             title={currentTrack.title}
@@ -182,14 +190,16 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1e1e1e',
+    // BlurView가 absoluteFill로 깔리므로 base 배경은 반투명 다크.
+    backgroundColor: 'rgba(30, 30, 30, 0.55)',
     marginHorizontal: 8,
     marginBottom: 8,
     borderRadius: 10,
     padding: 10,
     gap: 10,
     borderWidth: 1,
-    borderColor: '#2a2a2a',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    overflow: 'hidden',
   },
   info: {
     flex: 1,

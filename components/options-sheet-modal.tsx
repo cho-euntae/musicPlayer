@@ -7,6 +7,7 @@ import {
   BottomSheetModal,
   BottomSheetView,
 } from '@gorhom/bottom-sheet';
+import { BlurView } from 'expo-blur';
 
 export interface OptionItem<V> {
   value: V;
@@ -69,6 +70,13 @@ export function OptionsSheetModal<V>({
       handleIndicatorStyle={styles.handle}
     >
       <BottomSheetView style={styles.content}>
+        {/* 시트 표면을 frosted 글래스로 처리하여 부드러운 깊이감 부여 */}
+        <BlurView
+          intensity={55}
+          tint="dark"
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
         <View style={styles.header}>
           <Text style={styles.title}>{title}</Text>
           {description ? <Text style={styles.description}>{description}</Text> : null}
@@ -101,7 +109,8 @@ export function OptionsSheetModal<V>({
 
 const styles = StyleSheet.create({
   background: {
-    backgroundColor: '#1e1e1e',
+    // BlurView가 콘텐츠 위에 깔리므로 base는 반투명 다크.
+    backgroundColor: 'rgba(30, 30, 30, 0.6)',
   },
   handle: {
     backgroundColor: '#5a5a5a',
