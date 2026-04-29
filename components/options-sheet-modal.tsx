@@ -1,12 +1,12 @@
-import {
-  Modal,
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-} from 'react-native';
+import { useCallback, useEffect, useRef } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import {
+  BottomSheetBackdrop,
+  type BottomSheetBackdropProps,
+  BottomSheetModal,
+  BottomSheetView,
+} from '@gorhom/bottom-sheet';
 
 export interface OptionItem<V> {
   value: V;
@@ -24,6 +24,9 @@ interface OptionsSheetModalProps<V> {
   onClose: () => void;
 }
 
+// 외부 API(visible/onClose)는 종전 그대로 유지하고 내부만 @gorhom/bottom-sheet
+// 기반으로 교체. 호출자 측 변경 없이 드래그-다운 / 백드롭 탭 닫기 / 부드러운
+// 스프링 슬라이드 등 표준 바텀시트 UX를 그대로 얻는다.
 export function OptionsSheetModal<V>({
   visible,
   title,
@@ -33,62 +36,84 @@ export function OptionsSheetModal<V>({
   onSelect,
   onClose,
 }: OptionsSheetModalProps<V>) {
+  const sheetRef = useRef<BottomSheetModal>(null);
+
+  useEffect(() => {
+    if (visible) {
+      sheetRef.current?.present();
+    } else {
+      sheetRef.current?.dismiss();
+    }
+  }, [visible]);
+
+  const renderBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        appearsOnIndex={0}
+        disappearsOnIndex={-1}
+        pressBehavior="close"
+        opacity={0.5}
+      />
+    ),
+    [],
+  );
+
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose} />
-      <View style={styles.sheet}>
+    <BottomSheetModal
+      ref={sheetRef}
+      enableDynamicSizing
+      onDismiss={onClose}
+      backdropComponent={renderBackdrop}
+      backgroundStyle={styles.background}
+      handleIndicatorStyle={styles.handle}
+    >
+      <BottomSheetView style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>{title}</Text>
           {description ? <Text style={styles.description}>{description}</Text> : null}
         </View>
-
         <View style={styles.divider} />
-
-        <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-          {options.map((option) => {
-            const isSelected = option.value === selectedValue;
-            return (
-              <TouchableOpacity
-                key={String(option.value)}
-                style={styles.item}
-                onPress={() => onSelect(option.value)}
-              >
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemLabel}>{option.label}</Text>
-                  {option.hint ? <Text style={styles.itemHint}>{option.hint}</Text> : null}
-                </View>
-                {isSelected ? (
-                  <Ionicons name="checkmark-circle" size={22} color="#1DB954" />
-                ) : (
-                  <Ionicons name="ellipse-outline" size={22} color="#3a3a3a" />
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
-          <Text style={styles.cancelText}>닫기</Text>
-        </TouchableOpacity>
-      </View>
-    </Modal>
+        {options.map((option) => {
+          const isSelected = option.value === selectedValue;
+          return (
+            <TouchableOpacity
+              key={String(option.value)}
+              style={styles.item}
+              onPress={() => onSelect(option.value)}
+            >
+              <View style={styles.itemInfo}>
+                <Text style={styles.itemLabel}>{option.label}</Text>
+                {option.hint ? <Text style={styles.itemHint}>{option.hint}</Text> : null}
+              </View>
+              {isSelected ? (
+                <Ionicons name="checkmark-circle" size={22} color="#1DB954" />
+              ) : (
+                <Ionicons name="ellipse-outline" size={22} color="#3a3a3a" />
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </BottomSheetView>
+    </BottomSheetModal>
   );
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-  sheet: {
+  background: {
     backgroundColor: '#1e1e1e',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '70%',
+  },
+  handle: {
+    backgroundColor: '#5a5a5a',
+    width: 36,
+  },
+  content: {
     paddingBottom: 32,
   },
   header: { padding: 20, gap: 4 },
   title: { color: '#fff', fontSize: 17, fontWeight: 'bold' },
   description: { color: '#888', fontSize: 13, lineHeight: 19 },
   divider: { height: 1, backgroundColor: '#2a2a2a', marginHorizontal: 16 },
-  list: { maxHeight: 400 },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -99,10 +124,4 @@ const styles = StyleSheet.create({
   itemInfo: { flex: 1, gap: 2 },
   itemLabel: { color: '#fff', fontSize: 15, fontWeight: '600' },
   itemHint: { color: '#888', fontSize: 12 },
-  cancelBtn: {
-    marginHorizontal: 16, marginTop: 8,
-    paddingVertical: 14, borderRadius: 10,
-    backgroundColor: '#2a2a2a', alignItems: 'center',
-  },
-  cancelText: { color: '#fff', fontSize: 15, fontWeight: '500' },
 });

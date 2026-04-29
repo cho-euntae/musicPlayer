@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { AudioPlayerProvider } from '@/context/audio-player-context';
 import { usePlayerStore } from '@/store/player-store';
 import { useMediaLibrary } from '@/hooks/use-media-library';
@@ -37,23 +38,25 @@ function AppInitializer() {
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AudioPlayerProvider>
-        <AppInitializer />
-        <ThemedStatusBar />
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen
-            name="player"
-            options={{
-              presentation: 'modal',
-              animation: 'slide_from_bottom',
-            }}
-          />
-          <Stack.Screen name="queue" />
-          <Stack.Screen name="playlist/[id]" />
-          <Stack.Screen name="settings" />
-        </Stack>
-      </AudioPlayerProvider>
+      <BottomSheetModalProvider>
+        <AudioPlayerProvider>
+          <AppInitializer />
+          <ThemedStatusBar />
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+              name="player"
+              options={{
+                presentation: 'modal',
+                animation: 'slide_from_bottom',
+              }}
+            />
+            <Stack.Screen name="queue" />
+            <Stack.Screen name="playlist/[id]" />
+            <Stack.Screen name="settings" />
+          </Stack>
+        </AudioPlayerProvider>
+      </BottomSheetModalProvider>
     </GestureHandlerRootView>
   );
 }
