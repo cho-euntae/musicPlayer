@@ -53,6 +53,10 @@ export default function PlayerScreen() {
   const setPlaybackRate = usePlayerStore((s) => s.setPlaybackRate);
   const sleepTimerEndAt = usePlayerStore((s) => s.sleepTimerEndAt);
   const setSleepTimerMinutes = usePlayerStore((s) => s.setSleepTimerMinutes);
+  const loopStart = usePlayerStore((s) => s.loopStart);
+  const loopEnd = usePlayerStore((s) => s.loopEnd);
+  const setLoopStart = usePlayerStore((s) => s.setLoopStart);
+  const setLoopEnd = usePlayerStore((s) => s.setLoopEnd);
   const { togglePlay, seekTo, playPrev, skipBy } = useAudioControl();
 
   const [sleepModalVisible, setSleepModalVisible] = useState(false);
@@ -87,6 +91,42 @@ export default function PlayerScreen() {
 
   const rateLabel = `${playbackRate}×`;
   const rateActive = playbackRate !== 1;
+
+  const formatPositionShort = (ms: number) => {
+    const totalSec = Math.max(0, Math.floor(ms / 1000));
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+  const aActive = loopStart !== null;
+  const bActive = loopEnd !== null;
+  const loopActive = aActive && bActive;
+  const aLabel = aActive ? `A ${formatPositionShort(loopStart)}` : 'A';
+  const bLabel = bActive ? `B ${formatPositionShort(loopEnd)}` : 'B';
+
+  const handleA = () => {
+    // A가 설정돼 있으면 구간 전체 해제, 아니면 현재 위치로 A 설정.
+    if (aActive) {
+      setLoopStart(null);
+      return;
+    }
+    setLoopStart(position);
+  };
+
+  const handleB = () => {
+    if (bActive) {
+      setLoopEnd(null);
+      return;
+    }
+    if (!aActive) {
+      // A 없이 B만 누른 경우: A 먼저 잡아준다.
+      setLoopStart(position);
+      return;
+    }
+    // 너무 짧은 구간 방지 (1초 미만이면 무시).
+    if (Math.abs(position - (loopStart ?? 0)) < 1000) return;
+    setLoopEnd(position);
+  };
 
   if (!currentTrack) {
     return (
@@ -174,6 +214,35 @@ export default function PlayerScreen() {
           />
           <Text style={[styles.chipBtnText, sleepActive && styles.chipBtnTextActive]}>
             {sleepLabel}
+          </Text>
+        </TouchableOpacity>
+
+        {/* A-B 구간 반복 */}
+        <TouchableOpacity
+          style={[styles.chipBtn, aActive && styles.chipBtnActive]}
+          onPress={handleA}
+        >
+          <Ionicons
+            name="flag-outline"
+            size={16}
+            color={aActive ? '#041107' : '#fff'}
+          />
+          <Text style={[styles.chipBtnText, aActive && styles.chipBtnTextActive]}>
+            {aLabel}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.chipBtn, loopActive && styles.chipBtnActive]}
+          onPress={handleB}
+        >
+          <Ionicons
+            name={loopActive ? 'repeat' : 'flag'}
+            size={16}
+            color={loopActive ? '#041107' : '#fff'}
+          />
+          <Text style={[styles.chipBtnText, loopActive && styles.chipBtnTextActive]}>
+            {bLabel}
           </Text>
         </TouchableOpacity>
       </View>
@@ -340,7 +409,9 @@ const styles = StyleSheet.create({
   },
   secondaryControls: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
+    rowGap: 8,
   },
   chipBtn: {
     flexDirection: 'row',

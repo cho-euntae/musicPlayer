@@ -72,6 +72,10 @@ interface PlayerState {
   // 슬립 타이머 만료 시각 (epoch ms). null이면 비활성. 앱 재시작 시 초기화.
   sleepTimerEndAt: number | null;
 
+  // A-B 구간 반복 (세션 단위, 곡 변경 시 자동 해제, 영속화 X)
+  loopStart: number | null; // ms
+  loopEnd: number | null;   // ms
+
   // 설정 (영속화)
   hideCallRecordings: boolean;
   recentlyPlayedLimit: RecentlyPlayedLimit;
@@ -112,6 +116,11 @@ interface PlayerState {
   setPlaybackRate: (rate: number) => void;
   setSleepTimerMinutes: (minutes: number | null) => void;
 
+  // A-B 구간 반복
+  setLoopStart: (positionMs: number | null) => void;
+  setLoopEnd: (positionMs: number | null) => void;
+  clearLoop: () => void;
+
   // 설정 액션
   setHideCallRecordings: (hide: boolean) => void;
   setRecentlyPlayedLimit: (limit: RecentlyPlayedLimit) => void;
@@ -149,6 +158,8 @@ export const usePlayerStore = create<PlayerState>()(
       pendingSeekPosition: null,
       playbackRate: 1,
       sleepTimerEndAt: null,
+      loopStart: null,
+      loopEnd: null,
       hideCallRecordings: true,
       recentlyPlayedLimit: 50,
       themeMode: 'system',
@@ -419,6 +430,34 @@ export const usePlayerStore = create<PlayerState>()(
           sleepTimerEndAt:
             minutes === null || minutes <= 0 ? null : Date.now() + minutes * 60_000,
         }),
+
+      setLoopStart: (positionMs) =>
+        set((s) => {
+          if (positionMs === null) {
+            // A를 해제하면 B도 의미가 없으므로 같이 해제.
+            return { loopStart: null, loopEnd: null };
+          }
+          // B가 이미 설정돼 있고 새로운 A가 B 이후라면 B를 해제.
+          const nextLoopEnd =
+            s.loopEnd !== null && positionMs >= s.loopEnd ? null : s.loopEnd;
+          return { loopStart: positionMs, loopEnd: nextLoopEnd };
+        }),
+
+      setLoopEnd: (positionMs) =>
+        set((s) => {
+          if (positionMs === null) {
+            return { loopEnd: null };
+          }
+          // A가 없으면 무시 (UI에서도 막지만 안전장치).
+          if (s.loopStart === null) return s;
+          // B가 A보다 이전이면 스왑.
+          if (positionMs < s.loopStart) {
+            return { loopStart: positionMs, loopEnd: s.loopStart };
+          }
+          return { loopEnd: positionMs };
+        }),
+
+      clearLoop: () => set({ loopStart: null, loopEnd: null }),
 
       setHideCallRecordings: (hide) =>
         set((s) => {

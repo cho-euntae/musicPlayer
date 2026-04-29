@@ -217,6 +217,29 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     });
   }, [ensurePlayerSetup, playbackRate]);
 
+  // A-B 구간 반복: position이 loopEnd를 넘으면 loopStart로 자동 시킹.
+  const loopStart = usePlayerStore((s) => s.loopStart);
+  const loopEnd = usePlayerStore((s) => s.loopEnd);
+  useEffect(() => {
+    if (loopStart === null || loopEnd === null) return;
+    const positionMs = (progress.position ?? 0) * 1000;
+    if (positionMs >= loopEnd) {
+      void safeTrackPlayerCall('loopAB', async () => {
+        await TrackPlayer.seekTo(loopStart / 1000);
+        usePlayerStore.getState().setPosition(loopStart);
+      });
+    }
+  }, [progress.position, loopStart, loopEnd]);
+
+  // 트랙이 바뀌면 A-B 마커는 해제 (서로 다른 곡에서 의미 없음).
+  useEffect(() => {
+    if (!currentTrack) return;
+    const store = usePlayerStore.getState();
+    if (store.loopStart !== null || store.loopEnd !== null) {
+      store.clearLoop();
+    }
+  }, [currentTrack?.id]);
+
   // 슬립 타이머: 만료 시각에 도달하면 정지 + 타이머 클리어
   const sleepTimerEndAt = usePlayerStore((s) => s.sleepTimerEndAt);
   useEffect(() => {
