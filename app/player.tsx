@@ -121,13 +121,13 @@ export default function PlayerScreen() {
       setLoopEnd(null);
       return;
     }
-    if (!aActive) {
+    if (loopStart === null) {
       // A 없이 B만 누른 경우: A 먼저 잡아준다.
       setLoopStart(position);
       return;
     }
     // 너무 짧은 구간 방지 (1초 미만이면 무시).
-    if (Math.abs(position - (loopStart ?? 0)) < 1000) return;
+    if (Math.abs(position - loopStart) < 1000) return;
     setLoopEnd(position);
   };
 
@@ -155,7 +155,7 @@ export default function PlayerScreen() {
       colors={[palette.primary, palette.secondary, '#0a0a0a']}
       style={styles.gradient}
     >
-    <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
           <Ionicons name="chevron-down" size={28} color="#fff" />
@@ -336,7 +336,7 @@ export default function PlayerScreen() {
         }}
         onClose={() => setRateModalVisible(false)}
       />
-    </SafeAreaView>
+      </SafeAreaView>
     </LinearGradient>
   );
 }

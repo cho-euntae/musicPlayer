@@ -222,6 +222,9 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   const loopEnd = usePlayerStore((s) => s.loopEnd);
   useEffect(() => {
     if (loopStart === null || loopEnd === null) return;
+    // 안전장치: 비정상적으로 짧은 구간이 설정된 경우(예: 데이터 손상) 무시.
+    // UI에서는 1초 가드를 두지만 스토어를 직접 조작하는 케이스에 대한 방어.
+    if (loopEnd - loopStart < 500) return;
     const positionMs = (progress.position ?? 0) * 1000;
     if (positionMs >= loopEnd) {
       void safeTrackPlayerCall('loopAB', async () => {

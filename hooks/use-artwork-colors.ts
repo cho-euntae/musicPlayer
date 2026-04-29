@@ -19,7 +19,22 @@ const FALLBACK_PALETTE: ArtworkPalette = {
 };
 
 // URI -> 팔레트 메모이즈 캐시. 같은 곡으로 돌아올 때 재계산 비용 절감.
+// 큰 라이브러리에서 캐시가 무한정 커지는 것을 막기 위해 가장 오래된 항목부터
+// 제거하는 단순 LRU 정책 사용 (Map은 삽입 순서를 유지함).
+const PALETTE_CACHE_MAX_SIZE = 256;
 const paletteCache = new Map<string, ArtworkPalette>();
+
+function setCachedPalette(uri: string, palette: ArtworkPalette) {
+  // 이미 존재하면 최근 사용으로 갱신하기 위해 일단 삭제 후 재삽입.
+  paletteCache.delete(uri);
+  paletteCache.set(uri, palette);
+
+  while (paletteCache.size > PALETTE_CACHE_MAX_SIZE) {
+    const oldestKey = paletteCache.keys().next().value;
+    if (oldestKey === undefined) break;
+    paletteCache.delete(oldestKey);
+  }
+}
 
 function mapToPalette(result: ImageColorsResult): ArtworkPalette {
   if (result.platform === 'android') {
@@ -76,7 +91,7 @@ export function useArtworkColors(
         if (cancelled) return;
 
         const next = mapToPalette(result);
-        paletteCache.set(artworkUri, next);
+        setCachedPalette(artworkUri, next);
         setPalette(next);
       } catch {
         // artwork URI가 깨졌거나 권한 문제 등인 경우 fallback 유지.
