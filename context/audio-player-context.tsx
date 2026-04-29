@@ -18,12 +18,15 @@ interface AudioPlayerContextValue {
   seekTo: (positionMs: number) => void;
   // 5초 이내면 이전 트랙, 5초 이후면 현재 곡 처음부터.
   playPrev: () => void;
+  // 현재 위치 기준으로 상대 시킹. 음수면 뒤로, 양수면 앞으로.
+  skipBy: (deltaMs: number) => void;
 }
 
 const AudioPlayerContext = createContext<AudioPlayerContextValue>({
   togglePlay: () => {},
   seekTo: () => {},
   playPrev: () => {},
+  skipBy: () => {},
 });
 
 // 5초 이내에 "이전" 버튼을 누르면 진짜 이전 곡으로,
@@ -399,8 +402,22 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     });
   }, [ensurePlayerSetup]);
 
+  const skipBy = useCallback((deltaMs: number) => {
+    void safeTrackPlayerCall('skipBy', async () => {
+      await ensurePlayerSetup();
+      const { position, duration } = await TrackPlayer.getProgress();
+      const currentSec = position ?? 0;
+      const totalSec = duration ?? 0;
+      const targetSec = currentSec + deltaMs / 1000;
+      // 트랙 범위를 벗어나지 않도록 클램프.
+      const clampedSec = Math.max(0, totalSec > 0 ? Math.min(targetSec, totalSec) : targetSec);
+      await TrackPlayer.seekTo(clampedSec);
+      usePlayerStore.getState().setPosition(clampedSec * 1000);
+    });
+  }, [ensurePlayerSetup]);
+
   return (
-    <AudioPlayerContext.Provider value={{ togglePlay, seekTo, playPrev }}>
+    <AudioPlayerContext.Provider value={{ togglePlay, seekTo, playPrev, skipBy }}>
       {children}
     </AudioPlayerContext.Provider>
   );

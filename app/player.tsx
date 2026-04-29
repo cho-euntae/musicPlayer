@@ -53,7 +53,7 @@ export default function PlayerScreen() {
   const setPlaybackRate = usePlayerStore((s) => s.setPlaybackRate);
   const sleepTimerEndAt = usePlayerStore((s) => s.sleepTimerEndAt);
   const setSleepTimerMinutes = usePlayerStore((s) => s.setSleepTimerMinutes);
-  const { togglePlay, seekTo, playPrev } = useAudioControl();
+  const { togglePlay, seekTo, playPrev, skipBy } = useAudioControl();
 
   const [sleepModalVisible, setSleepModalVisible] = useState(false);
   const [rateModalVisible, setRateModalVisible] = useState(false);
@@ -181,6 +181,43 @@ export default function PlayerScreen() {
       {/* 진행 바 */}
       <ProgressBar position={position} duration={duration} onSeek={seekTo} />
 
+      {/* ±10초 / ±30초 스킵 버튼 */}
+      <View style={styles.skipRow}>
+        <TouchableOpacity
+          style={styles.skipBtn}
+          onPress={() => skipBy(-30_000)}
+          hitSlop={8}
+        >
+          <Ionicons name="play-back" size={18} color="#fff" />
+          <Text style={styles.skipBtnLabel}>30</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.skipBtn}
+          onPress={() => skipBy(-10_000)}
+          hitSlop={8}
+        >
+          <Ionicons name="play-back-outline" size={18} color="#fff" />
+          <Text style={styles.skipBtnLabel}>10</Text>
+        </TouchableOpacity>
+        <View style={styles.skipSpacer} />
+        <TouchableOpacity
+          style={styles.skipBtn}
+          onPress={() => skipBy(10_000)}
+          hitSlop={8}
+        >
+          <Text style={styles.skipBtnLabel}>10</Text>
+          <Ionicons name="play-forward-outline" size={18} color="#fff" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.skipBtn}
+          onPress={() => skipBy(30_000)}
+          hitSlop={8}
+        >
+          <Text style={styles.skipBtnLabel}>30</Text>
+          <Ionicons name="play-forward" size={18} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
       {/* 컨트롤 */}
       <Controls
         isPlaying={isPlaying}
@@ -263,6 +300,31 @@ const styles = StyleSheet.create({
   artworkWrap: {
     alignItems: 'center',
     marginVertical: 8,
+  },
+  skipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 8,
+  },
+  skipBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+  },
+  skipBtnLabel: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  skipSpacer: {
+    width: 16,
   },
   trackInfo: {
     gap: 4,
