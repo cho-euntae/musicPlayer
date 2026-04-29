@@ -73,7 +73,7 @@
 
 - [x] 재생 속도 조절 (0.75x ~ 2.0x)
 - [x] 슬립 타이머 (N분 후 자동 정지)
-- [ ] 구간 반복 (A-B 반복)
+- [x] 구간 반복 (A-B 반복) — 풀스크린 플레이어 A/B 칩, 곡 변경 시 자동 해제
 - [x] 현재 재생 큐 화면 (순서 변경 / 제거 / 우선 재생)
 - [ ] 볼륨 처리 정책 정리 (시스템 볼륨 연동)
 - [x] 손상 파일 / 재생 불가 파일 예외 처리
@@ -81,7 +81,9 @@
 ### UI / 디자인
 
 - [x] 홈 화면 개선 (최근 재생, 즐겨찾기 빠른 접근)
-- [ ] 애니메이션 개선
+- [x] 애니메이션 개선 — reanimated 미니플레이어 슬라이드인/페이드, 바텀시트 스프링
+- [x] 풀스크린 플레이어 동적 그라디언트 배경 (앨범 아트 dominant 색)
+- [x] frosted 글래스 (미니플레이어, 바텀시트)
 - [x] 빈 상태 화면 (곡 없음 / 플레이리스트 없음 / 검색 결과 없음)
 - [x] 권한 거부 안내 UI (미디어 권한 요청 가이드)
 
@@ -107,6 +109,17 @@
 ---
 
 ## 작업 로그
+
+### 2026-04-29 (A-B 반복 + 라이브러리 폴리싱 스프린트)
+
+- A-B 구간 반복: `store/player-store.ts`에 `loopStart`/`loopEnd` 세션 필드 + `setLoopStart`/`setLoopEnd`/`clearLoop` 액션. `audio-player-context`의 progress 콜백에서 position이 loopEnd를 넘으면 loopStart로 자동 시킹, 트랙 변경 시 자동 해제. 풀스크린 플레이어 보조 컨트롤 row에 A / B 칩 추가 (위치 표시 + 활성 시각화)
+- 라이브러리 추가: `react-native-image-colors`, `expo-linear-gradient`, `@gorhom/bottom-sheet`, `react-native-reanimated`(+`react-native-worklets`), `expo-blur`, `fuzzysort`. babel-preset-expo 54.0.10이 worklets/plugin을 자동 등록하므로 `babel.config.js` 별도 작성 불필요. 새 네이티브 모듈 추가로 다음 빌드 전 `npx expo run:android --device`로 APK 재빌드 필요
+- 풀스크린 플레이어 동적 그라디언트: `hooks/use-artwork-colors.ts` 신규 — react-native-image-colors로 트랙 artwork에서 primary/secondary/accent 3색 팔레트 추출(URI 단위 메모이즈). expo-linear-gradient의 LinearGradient로 풀스크린 배경 적용. 추출 실패는 다크톤 fallback
+- 바텀시트 마이그레이션: `OptionsSheetModal` 내부 구현을 RN Modal -> @gorhom/bottom-sheet로 교체. 외부 API(visible/onClose)는 그대로 유지하여 호출자(player.tsx, settings.tsx) 코드 무변경. 드래그 다운 닫기, 백드롭 탭 닫기, enableDynamicSizing, 스프링 슬라이드 모션 적용. `app/_layout.tsx`에 BottomSheetModalProvider 추가
+- reanimated 슬라이드 애니메이션: 미니플레이어 mount 시 80dp 아래 + opacity 0에서 spring + cubic ease-out 페이드인. 트랙 사라지면 역방향 사라짐
+- frosted 글래스: 미니플레이어 컨테이너에 BlurView(intensity=45, tint=dark) absoluteFill + rgba(30,30,30,0.55) 반투명 base. 바텀시트 표면도 동일 패턴(intensity=55) 적용
+- 라이브러리 검색 fuzzysort: 기존 substring 매칭을 퍼지 매칭으로 교체. title -> artist -> album 순 가중치, 검색 시에는 sort 모드 무시하고 score 순 정렬, limit 500 / threshold -10000으로 관대한 매칭
+- 검증: `npx tsc --noEmit` (`app-example/` 템플릿 제외 오류 없음), `npm run lint` 통과
 
 ### 2026-04-29 (사용자 편의성 5종 스프린트)
 
