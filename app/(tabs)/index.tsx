@@ -50,10 +50,19 @@ export default function HomeScreen() {
             <Text style={styles.eyebrow}>MUSIC PLAYER</Text>
             <Text style={styles.title}>홈</Text>
           </View>
-          <TouchableOpacity style={styles.queueShortcut} onPress={() => router.push('/queue')}>
-            <Ionicons name="list-outline" size={18} color="#fff" />
-            <Text style={styles.queueShortcutText}>큐</Text>
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.queueShortcut} onPress={() => router.push('/queue')}>
+              <Ionicons name="list-outline" size={18} color="#fff" />
+              <Text style={styles.queueShortcutText}>큐</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.iconBtn}
+              onPress={() => router.push('/settings' as never)}
+              hitSlop={8}
+            >
+              <Ionicons name="settings-outline" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {currentTrack ? (
@@ -240,6 +249,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 4,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   queueShortcut: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -250,6 +264,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#1a1d1b',
     borderWidth: 1,
     borderColor: '#262b28',
+  },
+  iconBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 999,
+    backgroundColor: '#1a1d1b',
+    borderWidth: 1,
+    borderColor: '#262b28',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   queueShortcutText: {
     color: '#fff',

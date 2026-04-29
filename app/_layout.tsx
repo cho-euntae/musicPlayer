@@ -44,6 +44,7 @@ export default function RootLayout() {
           />
           <Stack.Screen name="queue" />
           <Stack.Screen name="playlist/[id]" />
+          <Stack.Screen name="settings" />
         </Stack>
       </AudioPlayerProvider>
     </GestureHandlerRootView>

@@ -23,6 +23,10 @@ export interface Playlist {
 }
 
 export type LibrarySortMode = 'name' | 'recent' | 'playCount';
+export type ThemeMode = 'system' | 'dark' | 'light';
+
+export const RECENTLY_PLAYED_LIMIT_OPTIONS = [20, 50, 100, 200] as const;
+export type RecentlyPlayedLimit = (typeof RECENTLY_PLAYED_LIMIT_OPTIONS)[number];
 
 interface PlayerState {
   // 전체 라이브러리
@@ -68,6 +72,11 @@ interface PlayerState {
   // 슬립 타이머 만료 시각 (epoch ms). null이면 비활성. 앱 재시작 시 초기화.
   sleepTimerEndAt: number | null;
 
+  // 설정 (영속화)
+  hideCallRecordings: boolean;
+  recentlyPlayedLimit: RecentlyPlayedLimit;
+  themeMode: ThemeMode;
+
   // 재생 액션
   setLibraryTracks: (tracks: Track[]) => void;
   setLibrarySortMode: (mode: LibrarySortMode) => void;
@@ -103,6 +112,11 @@ interface PlayerState {
   setPlaybackRate: (rate: number) => void;
   setSleepTimerMinutes: (minutes: number | null) => void;
 
+  // 설정 액션
+  setHideCallRecordings: (hide: boolean) => void;
+  setRecentlyPlayedLimit: (limit: RecentlyPlayedLimit) => void;
+  setThemeMode: (mode: ThemeMode) => void;
+
   // 플레이리스트 액션
   createPlaylist: (name: string) => string;
   savePlaylistFromTracks: (name: string, tracks: Track[]) => string;
@@ -135,6 +149,9 @@ export const usePlayerStore = create<PlayerState>()(
       pendingSeekPosition: null,
       playbackRate: 1,
       sleepTimerEndAt: null,
+      hideCallRecordings: true,
+      recentlyPlayedLimit: 50,
+      themeMode: 'system',
 
       setLibraryTracks: (tracks) => set({ libraryTracks: tracks }),
 
@@ -373,7 +390,9 @@ export const usePlayerStore = create<PlayerState>()(
       addToRecentlyPlayed: (trackId) =>
         set((s) => {
           const filtered = s.recentlyPlayed.filter((id) => id !== trackId);
-          return { recentlyPlayed: [trackId, ...filtered].slice(0, 50) };
+          return {
+            recentlyPlayed: [trackId, ...filtered].slice(0, s.recentlyPlayedLimit),
+          };
         }),
 
       incrementTrackPlayCount: (trackId) =>
@@ -396,6 +415,21 @@ export const usePlayerStore = create<PlayerState>()(
           sleepTimerEndAt:
             minutes === null || minutes <= 0 ? null : Date.now() + minutes * 60_000,
         }),
+
+      setHideCallRecordings: (hide) =>
+        set((s) => {
+          if (s.hideCallRecordings === hide) return s;
+          return { hideCallRecordings: hide };
+        }),
+
+      setRecentlyPlayedLimit: (limit) =>
+        set((s) => ({
+          recentlyPlayedLimit: limit,
+          // 새 한도가 기존 길이보다 작으면 즉시 잘라낸다.
+          recentlyPlayed: s.recentlyPlayed.slice(0, limit),
+        })),
+
+      setThemeMode: (mode) => set({ themeMode: mode }),
 
       createPlaylist: (name) => {
         const id = `playlist_${Date.now()}`;
@@ -491,6 +525,9 @@ export const usePlayerStore = create<PlayerState>()(
         lastTrackIndex: s.lastTrackIndex,
         lastPosition: s.lastPosition,
         playbackRate: s.playbackRate,
+        hideCallRecordings: s.hideCallRecordings,
+        recentlyPlayedLimit: s.recentlyPlayedLimit,
+        themeMode: s.themeMode,
       }),
       // 구버전 데이터 마이그레이션 (trackIds → tracks)
       migrate: (persistedState: any, version: number) => {

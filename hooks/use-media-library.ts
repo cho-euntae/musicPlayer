@@ -217,9 +217,10 @@ async function runLibraryScan(): Promise<void> {
         hasMore = page.hasNextPage;
       }
 
-      const filteredAssets = allAssets.filter(
-        (asset) => !isCallRecording(asset.uri),
-      );
+      const hideCallRecordings = usePlayerStore.getState().hideCallRecordings;
+      const filteredAssets = hideCallRecordings
+        ? allAssets.filter((asset) => !isCallRecording(asset.uri))
+        : allAssets;
 
       const formattedTracks: Track[] = filteredAssets.map((asset) => {
         const { title, artist } = parseTrackMetadata(asset.filename);

@@ -94,10 +94,10 @@
 
 ### 설정
 
-- [ ] 통화녹음 숨기기 on/off
-- [ ] 최근 재생 저장 개수 설정
-- [ ] 기본 정렬 방식 설정
-- [ ] 테마 설정 (다크/라이트)
+- [x] 통화녹음 숨기기 on/off
+- [x] 최근 재생 저장 개수 설정
+- [x] 기본 정렬 방식 설정
+- [x] 테마 설정 (다크/라이트) — 선택값 영속화 (라이트 테마 시각 적용은 후속)
 
 ### 빌드 / 배포
 
@@ -112,6 +112,7 @@
 
 - 1번 알림 일시정지 동작 복구: `TrackPlayer.registerPlaybackService` 호출이 React 컴포넌트 트리(`_layout.tsx`) 내부에서만 실행돼 헤드리스 알림 액션 시 `RemotePause`/`RemotePlay` 핸들러가 비어 있던 문제 수정. 진입점 `index.js` 신설, `expo-router/entry` 이전에 service를 등록하도록 순서 보장. `package.json` `main` → `index.js`
 - 2번 빈 상태 화면 통일: 라이브러리에 곡 0개 / 스캔 실패 카드 추가(`다시 스캔` / `다시 시도` 버튼, 스캔 중엔 인디케이터). 큐 화면 빈 상태를 다른 화면(즐겨찾기/최근/플레이리스트/홈)과 동일한 카드+아이콘+액션 버튼 패턴으로 일관화
+- 3번 설정 화면 추가: `app/settings.tsx` 신설, 홈 헤더에 톱니 아이콘 진입점. 스토어에 `hideCallRecordings` / `recentlyPlayedLimit` (`20|50|100|200`) / `themeMode` 필드와 액션 추가, partialize에 포함해 영속화. `useMediaLibrary` 통화녹음 필터를 토글 연동, 토글 즉시 `refresh()` 재스캔. `addToRecentlyPlayed` 슬라이스 길이를 `recentlyPlayedLimit`과 연동, 설정 변경 시 즉시 잘라냄. 기본 정렬은 기존 `librarySortMode` 노출. 테마는 값만 보관(다크 외 선택 시 안내 알림)
 
 ### 2026-04-20 (B-1 스프린트)
 
