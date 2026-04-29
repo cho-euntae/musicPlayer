@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -5,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
 import { usePlayerStore, useCurrentTrack, Track } from '@/store/player-store';
 import { TrackItem } from '@/components/track-item';
+import { TextInputModal } from '@/components/text-input-modal';
 
 const SPECIAL_PLAYLISTS: Record<string, { name: string; icon: string; color: string }> = {
   favorites: { name: '즐겨찾기', icon: 'heart', color: '#e74c3c' },
@@ -17,8 +19,11 @@ export default function PlaylistDetailScreen() {
   const {
     libraryTracks, queue, favorites, recentlyPlayed, playlists,
     setQueue, setIsPlaying, removeTrackFromPlaylist, toggleFavorite, moveTrackInPlaylist,
+    renamePlaylist,
     trackPlayCounts,
   } = usePlayerStore();
+
+  const [renameModalVisible, setRenameModalVisible] = useState(false);
 
   const isCustomPlaylist = !SPECIAL_PLAYLISTS[id];
   const trackSource = libraryTracks.length > 0 ? libraryTracks : queue;
@@ -133,9 +138,20 @@ export default function PlaylistDetailScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-        <Ionicons name="arrow-back" size={24} color="#fff" />
-      </TouchableOpacity>
+      <View style={styles.topBar}>
+        <TouchableOpacity onPress={() => router.back()} style={styles.topBarBtn} hitSlop={8}>
+          <Ionicons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+        {isCustomPlaylist && (
+          <TouchableOpacity
+            onPress={() => setRenameModalVisible(true)}
+            style={styles.topBarBtn}
+            hitSlop={8}
+          >
+            <Ionicons name="create-outline" size={22} color="#fff" />
+          </TouchableOpacity>
+        )}
+      </View>
 
       <View style={styles.heroSection}>
         <View style={styles.heroIcon}>
@@ -208,13 +224,40 @@ export default function PlaylistDetailScreen() {
           contentContainerStyle={{ paddingBottom: 16 }}
         />
       )}
+
+      {isCustomPlaylist && customPlaylist && (
+        <TextInputModal
+          visible={renameModalVisible}
+          title="플레이리스트 이름 변경"
+          initialValue={customPlaylist.name}
+          placeholder="새 이름을 입력하세요"
+          confirmLabel="저장"
+          onConfirm={(value) => {
+            renamePlaylist(customPlaylist.id, value);
+            setRenameModalVisible(false);
+          }}
+          onClose={() => setRenameModalVisible(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#121212' },
-  backBtn: { padding: 16 },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  topBarBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   heroSection: { alignItems: 'center', paddingBottom: 24, gap: 8 },
   heroIcon: {
     width: 100, height: 100, borderRadius: 16,

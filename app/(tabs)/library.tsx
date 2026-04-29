@@ -7,16 +7,56 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useMediaLibrary } from '@/hooks/use-media-library';
+import { useDebounce } from '@/hooks/use-debounce';
 import { TrackItem } from '@/components/track-item';
 import { PlaylistPickerModal } from '@/components/playlist-picker-modal';
-import { usePlayerStore, useCurrentTrack, Track } from '@/store/player-store';
+import {
+  usePlayerStore,
+  useCurrentTrack,
+  Track,
+  type LibrarySortMode,
+} from '@/store/player-store';
+
+const SORT_OPTIONS: { value: LibrarySortMode; label: string }[] = [
+  { value: 'name', label: '이름순' },
+  { value: 'recent', label: '최신순' },
+  { value: 'playCount', label: '재생순' },
+];
+
+function sortTracks(
+  tracks: readonly Track[],
+  mode: LibrarySortMode,
+  playCounts: Record<string, number>,
+): Track[] {
+  const sorted = [...tracks];
+  switch (mode) {
+    case 'name':
+      return sorted.sort((a, b) => a.title.localeCompare(b.title, 'ko'));
+    case 'recent':
+      return sorted.sort((a, b) => (b.creationTime ?? 0) - (a.creationTime ?? 0));
+    case 'playCount':
+      return sorted.sort((a, b) => {
+        const countDiff = (playCounts[b.id] ?? 0) - (playCounts[a.id] ?? 0);
+        if (countDiff !== 0) return countDiff;
+        return a.title.localeCompare(b.title, 'ko');
+      });
+    default:
+      return sorted;
+  }
+}
 
 export default function LibraryScreen() {
-  const { tracks, isLoading, error, permissionStatus, requestPermission } = useMediaLibrary();
+  const { isLoading, error, permissionStatus, requestPermission } = useMediaLibrary();
+  const tracks = usePlayerStore((s) => s.libraryTracks);
+  const sortMode = usePlayerStore((s) => s.librarySortMode);
+  const playCounts = usePlayerStore((s) => s.trackPlayCounts);
+  const setLibrarySortMode = usePlayerStore((s) => s.setLibrarySortMode);
   const currentTrack = useCurrentTrack();
-  const { setQueue, setIsPlaying } = usePlayerStore();
+  const setQueue = usePlayerStore((s) => s.setQueue);
+  const setIsPlaying = usePlayerStore((s) => s.setIsPlaying);
 
   const [searchQuery, setSearchQuery] = useState('');
+  const debouncedQuery = useDebounce(searchQuery, 250);
   const [isSearching, setIsSearching] = useState(false);
 
   // 다중 선택
@@ -25,15 +65,16 @@ export default function LibraryScreen() {
   const [pickerVisible, setPickerVisible] = useState(false);
 
   const filteredTracks = useMemo(() => {
-    if (!searchQuery.trim()) return tracks;
-    const query = searchQuery.toLowerCase();
-    return tracks.filter(
+    const sorted = sortTracks(tracks, sortMode, playCounts);
+    const query = debouncedQuery.trim().toLowerCase();
+    if (!query) return sorted;
+    return sorted.filter(
       (t) =>
         t.title.toLowerCase().includes(query) ||
         (t.artist ?? '').toLowerCase().includes(query) ||
-        (t.album ?? '').toLowerCase().includes(query)
+        (t.album ?? '').toLowerCase().includes(query),
     );
-  }, [tracks, searchQuery]);
+  }, [tracks, sortMode, playCounts, debouncedQuery]);
 
   const selectedTracks = useMemo(
     () => filteredTracks.filter((t) => selectedIds.has(t.id)),
@@ -99,7 +140,7 @@ export default function LibraryScreen() {
     );
   }
 
-  if (isLoading) {
+  if (isLoading && tracks.length === 0) {
     return (
       <SafeAreaView style={styles.container}>
         <ActivityIndicator size="large" color="#1DB954" style={{ marginTop: 40 }} />
@@ -160,13 +201,33 @@ export default function LibraryScreen() {
         </View>
       )}
 
+      {/* 정렬 옵션 */}
+      {!isSelectMode && !isSearching && (
+        <View style={styles.sortBar}>
+          {SORT_OPTIONS.map((option) => {
+            const isActive = option.value === sortMode;
+            return (
+              <TouchableOpacity
+                key={option.value}
+                style={[styles.sortChip, isActive && styles.sortChipActive]}
+                onPress={() => setLibrarySortMode(option.value)}
+              >
+                <Text style={[styles.sortChipText, isActive && styles.sortChipTextActive]}>
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
+
       {/* 트랙 목록 */}
-      {filteredTracks.length === 0 && searchQuery.trim() !== '' ? (
+      {filteredTracks.length === 0 && debouncedQuery.trim() !== '' ? (
         <View style={styles.emptyBox}>
           <View style={styles.emptyIconWrap}>
             <Ionicons name="search-outline" size={44} color="#4d7b5d" />
           </View>
-          <Text style={styles.emptyTitle}>&quot;{searchQuery}&quot; 검색 결과가 없습니다</Text>
+          <Text style={styles.emptyTitle}>&quot;{debouncedQuery}&quot; 검색 결과가 없습니다</Text>
           <Text style={styles.emptyText}>곡 이름, 아티스트, 앨범명으로 다시 검색해보세요.</Text>
           <TouchableOpacity style={styles.emptyActionBtn} onPress={handleSearchClose}>
             <Text style={styles.emptyActionText}>검색 닫기</Text>
@@ -176,7 +237,7 @@ export default function LibraryScreen() {
         <FlatList
           data={filteredTracks}
           keyExtractor={(item) => item.id}
-          renderItem={({ item, index }) => (
+          renderItem={({ item }) => (
             <TrackItem
               track={item}
               isActive={!isSelectMode && currentTrack?.id === item.id}
@@ -244,6 +305,32 @@ const styles = StyleSheet.create({
     borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, gap: 8,
   },
   searchInput: { flex: 1, color: '#fff', fontSize: 15, padding: 0 },
+  sortBar: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+  },
+  sortChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: '#1a1d1b',
+    borderWidth: 1,
+    borderColor: '#262b28',
+  },
+  sortChipActive: {
+    backgroundColor: '#1DB954',
+    borderColor: '#1DB954',
+  },
+  sortChipText: {
+    color: '#9ea5a1',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  sortChipTextActive: {
+    color: '#041107',
+  },
   emptyBox: {
     flex: 1,
     justifyContent: 'center',

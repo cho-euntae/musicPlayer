@@ -1,6 +1,6 @@
 import { Track, usePlayerStore } from "@/store/player-store";
 import * as MediaLibrary from "expo-media-library";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 // 갤럭시 통화 녹음 폴더 패턴
 const CALL_RECORDING_PATTERNS = [
@@ -173,41 +173,33 @@ function buildTrackAliases(previousTracks: Track[], nextTracks: Track[]): Record
   return aliases;
 }
 
-interface UseMediaLibraryResult {
-  tracks: Track[];
-  isLoading: boolean;
-  error: string | null;
-  permissionStatus: MediaLibrary.PermissionStatus | null;
-  requestPermission: () => Promise<void>;
-  refresh: () => Promise<void>;
+// 앱 단위로 공유되는 스캔 상태 — 여러 컴포넌트에서 useMediaLibrary를 호출해도
+// 전체 오디오 스캔은 최초 1회만 실행된다.
+type ScanListener = () => void;
+
+const scanState = {
+  isLoading: false,
+  error: null as string | null,
+  permissionStatus: null as MediaLibrary.PermissionStatus | null,
+  hasScanned: false,
+  inflightScan: null as Promise<void> | null,
+  listeners: new Set<ScanListener>(),
+};
+
+function notifyScanListeners() {
+  scanState.listeners.forEach((listener) => listener());
 }
 
-export function useMediaLibrary(): UseMediaLibraryResult {
-  const reconcileLibraryTracks = usePlayerStore((s) => s.reconcileLibraryTracks);
-  const [tracks, setTracks] = useState<Track[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [permissionStatus, setPermissionStatus] =
-    useState<MediaLibrary.PermissionStatus | null>(null);
+async function runLibraryScan(): Promise<void> {
+  if (scanState.inflightScan) {
+    return scanState.inflightScan;
+  }
 
-  const requestPermission = async () => {
-    try {
-      const { status } = await MediaLibrary.requestPermissionsAsync(false, [
-        "audio",
-      ]);
-      setPermissionStatus(status);
-      if (status === "granted") {
-        await loadTracks();
-      }
-    } catch (e) {
-      console.error("[useMediaLibrary] requestPermission failed", e);
-      setError("권한 요청에 실패했습니다.");
-    }
-  };
+  scanState.isLoading = true;
+  scanState.error = null;
+  notifyScanListeners();
 
-  const loadTracks = async () => {
-    setIsLoading(true);
-    setError(null);
+  const scanPromise = (async () => {
     try {
       let allAssets: MediaLibrary.Asset[] = [];
       let after: string | undefined;
@@ -224,12 +216,6 @@ export function useMediaLibrary(): UseMediaLibraryResult {
         after = page.endCursor;
         hasMore = page.hasNextPage;
       }
-
-      // 디버그: 오디오 파일 경로 출력 (확인 후 제거)
-      // console.log(
-      //   "[AudioFiles]",
-      //   allAssets.slice(0, 20).map((a) => a.uri),
-      // );
 
       const filteredAssets = allAssets.filter(
         (asset) => !isCallRecording(asset.uri),
@@ -252,7 +238,9 @@ export function useMediaLibrary(): UseMediaLibraryResult {
       });
 
       const dedupedTracks = Array.from(
-        new Map(formattedTracks.map((track) => [getTrackDedupKey(track), track])).values(),
+        new Map(
+          formattedTracks.map((track) => [getTrackDedupKey(track), track]),
+        ).values(),
       );
 
       const previousState = usePlayerStore.getState();
@@ -264,38 +252,91 @@ export function useMediaLibrary(): UseMediaLibraryResult {
       ];
       const aliases = buildTrackAliases(previousTracks, dedupedTracks);
 
-      setTracks(dedupedTracks);
-      reconcileLibraryTracks(dedupedTracks, aliases);
+      previousState.reconcileLibraryTracks(dedupedTracks, aliases);
+      scanState.hasScanned = true;
     } catch (e) {
-      setError("음악 목록을 불러오는데 실패했습니다.");
+      console.error("[useMediaLibrary] loadTracks failed", e);
+      scanState.error = "음악 목록을 불러오는데 실패했습니다.";
     } finally {
-      setIsLoading(false);
+      scanState.isLoading = false;
+      scanState.inflightScan = null;
+      notifyScanListeners();
     }
-  };
+  })();
+
+  scanState.inflightScan = scanPromise;
+  return scanPromise;
+}
+
+async function ensureInitialScan(): Promise<void> {
+  try {
+    const { status } = await MediaLibrary.getPermissionsAsync(false, ["audio"]);
+    scanState.permissionStatus = status;
+    notifyScanListeners();
+    if (status === "granted" && !scanState.hasScanned) {
+      await runLibraryScan();
+    }
+  } catch (e) {
+    console.error("[useMediaLibrary] initial permission check failed", e);
+    scanState.error = "미디어 라이브러리 접근에 실패했습니다.";
+    notifyScanListeners();
+  }
+}
+
+interface UseMediaLibraryResult {
+  tracks: Track[];
+  isLoading: boolean;
+  error: string | null;
+  permissionStatus: MediaLibrary.PermissionStatus | null;
+  requestPermission: () => Promise<void>;
+  refresh: () => Promise<void>;
+}
+
+export function useMediaLibrary(): UseMediaLibraryResult {
+  const libraryTracks = usePlayerStore((s) => s.libraryTracks);
+
+  // 로컬 state는 scanState 스냅샷을 보관하는 용도
+  const [, setTick] = useState(0);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const { status } = await MediaLibrary.getPermissionsAsync(false, [
-          "audio",
-        ]);
-        setPermissionStatus(status);
-        if (status === "granted") {
-          await loadTracks();
-        }
-      } catch (e) {
-        console.error("[useMediaLibrary] initial permission check failed", e);
-        setError("미디어 라이브러리 접근에 실패했습니다.");
+    const listener = () => setTick((n) => n + 1);
+    scanState.listeners.add(listener);
+    return () => {
+      scanState.listeners.delete(listener);
+    };
+  }, []);
+
+  useEffect(() => {
+    void ensureInitialScan();
+  }, []);
+
+  const requestPermission = useCallback(async () => {
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync(false, [
+        "audio",
+      ]);
+      scanState.permissionStatus = status;
+      notifyScanListeners();
+      if (status === "granted") {
+        await runLibraryScan();
       }
-    })();
-  }, [reconcileLibraryTracks]);
+    } catch (e) {
+      console.error("[useMediaLibrary] requestPermission failed", e);
+      scanState.error = "권한 요청에 실패했습니다.";
+      notifyScanListeners();
+    }
+  }, []);
+
+  const refresh = useCallback(async () => {
+    await runLibraryScan();
+  }, []);
 
   return {
-    tracks,
-    isLoading,
-    error,
-    permissionStatus,
+    tracks: libraryTracks,
+    isLoading: scanState.isLoading,
+    error: scanState.error,
+    permissionStatus: scanState.permissionStatus,
     requestPermission,
-    refresh: loadTracks,
+    refresh,
   };
 }

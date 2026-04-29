@@ -88,20 +88,18 @@ function fromTrackPlayerTrack(track: RNTPTrack): PlayerTrack {
 
 export function AudioPlayerProvider({ children }: { children: React.ReactNode }) {
   const currentTrack = useCurrentTrack();
-  const {
-    queue,
-    currentIndex,
-    isPlaying,
-    repeatMode,
-    setIsPlaying,
-    setPosition,
-    setDuration,
-    addToRecentlyPlayed,
-    incrementTrackPlayCount,
-    savePlaybackState,
-    pendingSeekPosition,
-    clearPendingSeekPosition,
-  } = usePlayerStore();
+  const queue = usePlayerStore((s) => s.queue);
+  const currentIndex = usePlayerStore((s) => s.currentIndex);
+  const isPlaying = usePlayerStore((s) => s.isPlaying);
+  const repeatMode = usePlayerStore((s) => s.repeatMode);
+  const pendingSeekPosition = usePlayerStore((s) => s.pendingSeekPosition);
+  const setIsPlaying = usePlayerStore((s) => s.setIsPlaying);
+  const setPosition = usePlayerStore((s) => s.setPosition);
+  const setDuration = usePlayerStore((s) => s.setDuration);
+  const addToRecentlyPlayed = usePlayerStore((s) => s.addToRecentlyPlayed);
+  const incrementTrackPlayCount = usePlayerStore((s) => s.incrementTrackPlayCount);
+  const savePlaybackState = usePlayerStore((s) => s.savePlaybackState);
+  const clearPendingSeekPosition = usePlayerStore((s) => s.clearPendingSeekPosition);
 
   const playbackState = usePlaybackState();
   const progress = useProgress(1000);
@@ -201,6 +199,38 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     });
   }, [ensurePlayerSetup, repeatMode]);
 
+  const playbackRate = usePlayerStore((s) => s.playbackRate);
+  useEffect(() => {
+    void safeTrackPlayerCall('setRate', async () => {
+      await ensurePlayerSetup();
+      await TrackPlayer.setRate(playbackRate);
+    });
+  }, [ensurePlayerSetup, playbackRate]);
+
+  // 슬립 타이머: 만료 시각에 도달하면 정지 + 타이머 클리어
+  const sleepTimerEndAt = usePlayerStore((s) => s.sleepTimerEndAt);
+  useEffect(() => {
+    if (sleepTimerEndAt === null) return;
+
+    const remainingMs = sleepTimerEndAt - Date.now();
+    if (remainingMs <= 0) {
+      usePlayerStore.getState().setSleepTimerMinutes(null);
+      void safeTrackPlayerCall('sleepTimerExpireNow', async () => {
+        await TrackPlayer.pause();
+      });
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      usePlayerStore.getState().setSleepTimerMinutes(null);
+      void safeTrackPlayerCall('sleepTimerExpire', async () => {
+        await TrackPlayer.pause();
+      });
+    }, remainingMs);
+
+    return () => clearTimeout(timeoutId);
+  }, [sleepTimerEndAt]);
+
   useEffect(() => {
     let isCancelled = false;
 
@@ -268,25 +298,6 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     setPosition,
   ]);
 
-  useEffect(() => {
-    void safeTrackPlayerCall('syncPlaybackState', async () => {
-      await ensurePlayerSetup();
-
-      if (queue.length === 0) {
-        return;
-      }
-
-      const currentPlaybackState = await TrackPlayer.getPlaybackState();
-      const playingNow = isPlaybackActive(currentPlaybackState.state);
-
-      if (isPlaying && !playingNow) {
-        await TrackPlayer.play();
-      } else if (!isPlaying && playingNow) {
-        await TrackPlayer.pause();
-      }
-    });
-  }, [ensurePlayerSetup, isPlaying, queue.length]);
-
   useTrackPlayerEvents([Event.PlaybackActiveTrackChanged], (event) => {
     if (typeof event.index !== 'number') {
       return;
@@ -296,6 +307,13 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     if (event.index !== store.currentIndex) {
       store.setCurrentIndex(event.index);
     }
+  });
+
+  useTrackPlayerEvents([Event.PlaybackError], (event) => {
+    console.warn('[AudioPlayer] PlaybackError', event);
+    // playback-service가 자동으로 다음 곡 스킵을 시도하지만,
+    // 스킵 전까지 UI가 재생 중처럼 보이지 않도록 즉시 정지 상태로 동기화.
+    usePlayerStore.getState().setIsPlaying(false);
   });
 
   useEffect(() => {
@@ -339,9 +357,16 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
   }, [isPlaying, savePlaybackState]);
 
   const togglePlay = useCallback(() => {
-    const playingNow = usePlayerStore.getState().isPlaying;
-    usePlayerStore.getState().setIsPlaying(!playingNow);
-  }, []);
+    void safeTrackPlayerCall('togglePlay', async () => {
+      await ensurePlayerSetup();
+      const state = await TrackPlayer.getPlaybackState();
+      if (isPlaybackActive(state.state)) {
+        await TrackPlayer.pause();
+      } else {
+        await TrackPlayer.play();
+      }
+    });
+  }, [ensurePlayerSetup]);
 
   const seekTo = useCallback((positionMs: number) => {
     void safeTrackPlayerCall('seekTo', async () => {

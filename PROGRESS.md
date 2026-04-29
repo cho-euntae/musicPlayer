@@ -56,27 +56,27 @@
 ### 검색 / 정렬
 
 - [x] Library 검색 (곡 이름 / 아티스트 / 앨범으로 필터링)
-- [ ] 정렬 기능 (이름순 / 최신순 / 재생 횟수순)
+- [x] 정렬 기능 (이름순 / 최신순 / 재생 횟수순)
 - [x] 재생 횟수 기록
-- [ ] 검색 debounce 적용 (성능 최적화)
+- [x] 검색 debounce 적용 (성능 최적화)
 
 ### 플레이리스트 개선
 
 - [x] 플레이리스트에서 곡 제거 (휴지통 버튼 + 확인 알림)
 - [x] 플레이리스트 순서 변경 (드래그)
-- [ ] 플레이리스트 이름 변경
+- [x] 플레이리스트 이름 변경
 - [x] 플레이리스트 중복 곡 추가 정책 (동일 id 중복 방지, 건너뜀 알림)
 - [x] 다중 선택 후 플레이리스트에 일괄 추가 (롱프레스로 선택 모드 진입)
-- [ ] 현재 재생 큐를 플레이리스트로 저장
+- [x] 현재 재생 큐를 플레이리스트로 저장
 
 ### 플레이어 기능 추가
 
-- [ ] 재생 속도 조절 (0.5x ~ 2.0x)
-- [ ] 슬립 타이머 (N분 후 자동 정지)
+- [x] 재생 속도 조절 (0.75x ~ 2.0x)
+- [x] 슬립 타이머 (N분 후 자동 정지)
 - [ ] 구간 반복 (A-B 반복)
 - [x] 현재 재생 큐 화면 (순서 변경 / 제거 / 우선 재생)
 - [ ] 볼륨 처리 정책 정리 (시스템 볼륨 연동)
-- [ ] 손상 파일 / 재생 불가 파일 예외 처리
+- [x] 손상 파일 / 재생 불가 파일 예외 처리
 
 ### UI / 디자인
 
@@ -107,6 +107,28 @@
 ---
 
 ## 작업 로그
+
+### 2026-04-20 (B-1 스프린트)
+
+- 슬립 타이머 추가: 스토어에 `sleepTimerEndAt`(앱 재시작 시 초기화) 필드와 `setSleepTimerMinutes` 액션, `AudioPlayerProvider`에서 만료 시각 도달 시 `TrackPlayer.pause()` + 자동 클리어. 풀스크린 플레이어에 달 아이콘 칩 추가, 활성 시 `m:ss` 남은 시간 실시간 표시
+- 재생 속도 조절 추가: 스토어에 `playbackRate`(영속화) 필드와 `setPlaybackRate` 액션, `TrackPlayer.setRate()` 동기화. 풀스크린 플레이어에 속도계 아이콘 칩 + 6단계 선택 모달 (0.75× / 1× / 1.25× / 1.5× / 1.75× / 2×)
+- 플레이리스트 이름 변경 UI 추가: 커스텀 플레이리스트 상세 화면 상단에 연필 아이콘, 공용 `TextInputModal`에서 이름을 받아 기존 스토어 액션 `renamePlaylist` 연결
+- 현재 재생 큐 → 플레이리스트 저장 플로우 추가: 스토어에 `savePlaylistFromTracks` 액션 신규, 큐 화면 헤더에 북마크 아이콘 → `TextInputModal`로 새 플레이리스트 이름 입력 → 저장 후 완료 알림
+- 공용 컴포넌트 2종 신규: `components/text-input-modal.tsx`(플레이리스트 이름 변경·큐 저장 공용), `components/options-sheet-modal.tsx`(슬립 타이머·재생 속도 공용). 향후 옵션/입력 다이얼로그가 필요할 때 재사용
+- 검증: `npx tsc --noEmit` 오류 없음, `npm run lint` 통과
+
+### 2026-04-20
+
+- 릴리즈 APK 먹통 증상 원인 진단: 설치본이 디버그 빌드여서 Metro(`localhost:8081`) 번들을 기다리다 스플래시에서 정지. `adb logcat`의 `BridgelessDevSupportManager` / `Failed to connect to localhost/127.0.0.1:8081` 메시지로 확정
+- 라이브러리 정렬 기능 추가: 스토어에 `librarySortMode` (`name`/`recent`/`playCount`) 필드와 `setLibrarySortMode` 액션, partialize에 포함해 영속화. 라이브러리 화면 헤더 하단에 정렬 칩 3개 UI 추가
+- 검색 debounce 도입: `hooks/use-debounce.ts` 추가, 라이브러리 검색 입력을 250ms debounce 처리해 타이핑 중 필터링 비용 절감
+- 재생 오류 처리 추가: `Event.PlaybackError` 수신 시 `playback-service`에서 자동으로 다음 곡 스킵, 실패 시 `TrackPlayer.reset()`으로 복구. `AudioPlayerProvider`에서도 같은 이벤트로 `isPlaying=false` 동기화
+- 저장소에서 사라진 파일이 `lastQueue`에 남아 복원 시 무한 대기 또는 정지처럼 보이던 문제 해소 (위 PlaybackError 핸들러 경유)
+- `_layout.tsx` `AppInitializer`가 `usePlayerStore()`를 통째로 구독하던 것을 필드별 셀렉터로 분리해 매 1초 progress 갱신마다 발생하던 전역 리렌더 제거
+- `AudioPlayerProvider`의 스토어 구독도 셀렉터 단위로 전부 분리
+- `hooks/use-media-library.ts`를 모듈 스코프 `scanState`로 재구성해 앱 생애주기 동안 전체 오디오 스캔이 최초 1회만 실행되도록 수정. 여러 컴포넌트가 동시에 `useMediaLibrary`를 호출해도 중복 스캔 없음. `tracks`는 이제 스토어의 `libraryTracks`를 직접 반환
+- 알림(상단 작업표시줄) 일시정지가 눌려도 즉시 재생 재개되던 증상 수정: `syncPlaybackState` 이펙트의 stale closure + 취소 미적용으로 인한 경합을 제거하기 위해 해당 이펙트를 삭제, `togglePlay`는 네이티브 `getPlaybackState` 기준으로 직접 `TrackPlayer.play()`/`pause()`를 호출하도록 변경. 스토어 `isPlaying`은 네이티브 → 스토어 단방향 동기화만 유지
+- 검증: `npx tsc --noEmit` (`app-example/` 템플릿 제외 오류 없음), `npm run lint` 통과
 
 ### 2026-03-30
 

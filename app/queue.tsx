@@ -1,21 +1,24 @@
+import { useState } from 'react';
 import { Alert, View, Text, FlatList, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { TrackItem } from '@/components/track-item';
 import { useCurrentTrack, usePlayerStore } from '@/store/player-store';
+import { TextInputModal } from '@/components/text-input-modal';
 
 export default function QueueScreen() {
   const currentTrack = useCurrentTrack();
-  const {
-    queue,
-    currentIndex,
-    setCurrentIndex,
-    setIsPlaying,
-    clearQueue,
-    moveTrackInQueue,
-    removeTrackFromQueue,
-  } = usePlayerStore();
+  const queue = usePlayerStore((s) => s.queue);
+  const currentIndex = usePlayerStore((s) => s.currentIndex);
+  const setCurrentIndex = usePlayerStore((s) => s.setCurrentIndex);
+  const setIsPlaying = usePlayerStore((s) => s.setIsPlaying);
+  const clearQueue = usePlayerStore((s) => s.clearQueue);
+  const moveTrackInQueue = usePlayerStore((s) => s.moveTrackInQueue);
+  const removeTrackFromQueue = usePlayerStore((s) => s.removeTrackFromQueue);
+  const savePlaylistFromTracks = usePlayerStore((s) => s.savePlaylistFromTracks);
+
+  const [saveModalVisible, setSaveModalVisible] = useState(false);
 
   const handlePlay = (index: number) => {
     setCurrentIndex(index);
@@ -45,6 +48,12 @@ export default function QueueScreen() {
     ]);
   };
 
+  const handleSavePlaylist = (name: string) => {
+    savePlaylistFromTracks(name, queue);
+    setSaveModalVisible(false);
+    Alert.alert('저장 완료', `"${name}" 플레이리스트로 저장했습니다 (${queue.length}곡)`);
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -56,9 +65,18 @@ export default function QueueScreen() {
           <Text style={styles.subtitle}>{queue.length}곡</Text>
         </View>
         {queue.length > 0 ? (
-          <TouchableOpacity onPress={handleClearQueue} style={styles.headerBtn}>
-            <Ionicons name="trash-outline" size={20} color="#999" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={() => setSaveModalVisible(true)}
+              style={styles.headerBtn}
+              hitSlop={8}
+            >
+              <Ionicons name="bookmark-outline" size={20} color="#1DB954" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleClearQueue} style={styles.headerBtn} hitSlop={8}>
+              <Ionicons name="trash-outline" size={20} color="#999" />
+            </TouchableOpacity>
+          </View>
         ) : (
           <View style={styles.headerBtn} />
         )}
@@ -137,6 +155,16 @@ export default function QueueScreen() {
           showsVerticalScrollIndicator={false}
         />
       )}
+
+      <TextInputModal
+        visible={saveModalVisible}
+        title="플레이리스트로 저장"
+        description={`현재 재생 큐 ${queue.length}곡이 새 플레이리스트로 저장됩니다.`}
+        placeholder="플레이리스트 이름"
+        confirmLabel="저장"
+        onConfirm={handleSavePlaylist}
+        onClose={() => setSaveModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -156,6 +184,11 @@ const styles = StyleSheet.create({
   headerBtn: {
     width: 32,
     alignItems: 'center',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   headerTextWrap: {
     flex: 1,

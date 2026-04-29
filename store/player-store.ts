@@ -22,9 +22,14 @@ export interface Playlist {
   createdAt: number;
 }
 
+export type LibrarySortMode = 'name' | 'recent' | 'playCount';
+
 interface PlayerState {
   // 전체 라이브러리
   libraryTracks: Track[];
+
+  // 라이브러리 정렬 모드
+  librarySortMode: LibrarySortMode;
 
   // 재생 큐
   queue: Track[];
@@ -57,8 +62,15 @@ interface PlayerState {
   lastPosition: number;
   pendingSeekPosition: number | null;
 
+  // 재생 속도 (영속화)
+  playbackRate: number;
+
+  // 슬립 타이머 만료 시각 (epoch ms). null이면 비활성. 앱 재시작 시 초기화.
+  sleepTimerEndAt: number | null;
+
   // 재생 액션
   setLibraryTracks: (tracks: Track[]) => void;
+  setLibrarySortMode: (mode: LibrarySortMode) => void;
   reconcileLibraryTracks: (tracks: Track[], aliases: Record<string, string>) => void;
   setQueue: (tracks: Track[], startIndex?: number) => void;
   restoreQueue: (tracks: Track[], startIndex: number, positionMs: number) => void;
@@ -87,8 +99,13 @@ interface PlayerState {
   savePlaybackState: (positionMs: number) => void;
   clearPendingSeekPosition: () => void;
 
+  // 재생 속도 / 슬립 타이머
+  setPlaybackRate: (rate: number) => void;
+  setSleepTimerMinutes: (minutes: number | null) => void;
+
   // 플레이리스트 액션
   createPlaylist: (name: string) => string;
+  savePlaylistFromTracks: (name: string, tracks: Track[]) => string;
   deletePlaylist: (id: string) => void;
   renamePlaylist: (id: string, name: string) => void;
   addTrackToPlaylist: (playlistId: string, track: Track) => void;
@@ -100,6 +117,7 @@ export const usePlayerStore = create<PlayerState>()(
   persist(
     (set, get) => ({
       libraryTracks: [],
+      librarySortMode: 'name',
       queue: [],
       currentIndex: 0,
       isPlaying: false,
@@ -115,8 +133,12 @@ export const usePlayerStore = create<PlayerState>()(
       lastTrackIndex: 0,
       lastPosition: 0,
       pendingSeekPosition: null,
+      playbackRate: 1,
+      sleepTimerEndAt: null,
 
       setLibraryTracks: (tracks) => set({ libraryTracks: tracks }),
+
+      setLibrarySortMode: (mode) => set({ librarySortMode: mode }),
 
       reconcileLibraryTracks: (tracks, aliases) =>
         set((s) => {
@@ -367,12 +389,31 @@ export const usePlayerStore = create<PlayerState>()(
 
       clearPendingSeekPosition: () => set({ pendingSeekPosition: null }),
 
+      setPlaybackRate: (rate) => set({ playbackRate: rate }),
+
+      setSleepTimerMinutes: (minutes) =>
+        set({
+          sleepTimerEndAt:
+            minutes === null || minutes <= 0 ? null : Date.now() + minutes * 60_000,
+        }),
+
       createPlaylist: (name) => {
         const id = `playlist_${Date.now()}`;
         set((s) => ({
           playlists: [
             ...s.playlists,
             { id, name, tracks: [], createdAt: Date.now() },
+          ],
+        }));
+        return id;
+      },
+
+      savePlaylistFromTracks: (name, tracks) => {
+        const id = `playlist_${Date.now()}`;
+        set((s) => ({
+          playlists: [
+            ...s.playlists,
+            { id, name, tracks: [...tracks], createdAt: Date.now() },
           ],
         }));
         return id;
@@ -439,6 +480,7 @@ export const usePlayerStore = create<PlayerState>()(
       // 재생 상태(position, isPlaying)는 저장 불필요
       partialize: (s) => ({
         libraryTracks: s.libraryTracks,
+        librarySortMode: s.librarySortMode,
         isShuffled: s.isShuffled,
         repeatMode: s.repeatMode,
         favorites: s.favorites,
@@ -448,6 +490,7 @@ export const usePlayerStore = create<PlayerState>()(
         lastQueue: s.lastQueue,
         lastTrackIndex: s.lastTrackIndex,
         lastPosition: s.lastPosition,
+        playbackRate: s.playbackRate,
       }),
       // 구버전 데이터 마이그레이션 (trackIds → tracks)
       migrate: (persistedState: any, version: number) => {

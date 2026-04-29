@@ -32,4 +32,17 @@ export default async function playbackService() {
   TrackPlayer.addEventListener(Event.RemoteSeek, async (event) => {
     await TrackPlayer.seekTo(event.position);
   });
+
+  TrackPlayer.addEventListener(Event.PlaybackError, async (error) => {
+    console.warn('[TrackPlayer] PlaybackError', error);
+    try {
+      await TrackPlayer.skipToNext();
+    } catch {
+      try {
+        await TrackPlayer.reset();
+      } catch {
+        // 무시
+      }
+    }
+  });
 }

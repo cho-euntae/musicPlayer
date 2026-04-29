@@ -9,15 +9,18 @@ import '@/services/register-track-player';
 
 function AppInitializer() {
   useMediaLibrary();
-  const { lastQueue, lastTrackIndex, lastPosition, restoreQueue } = usePlayerStore();
+  const lastQueue = usePlayerStore((s) => s.lastQueue);
+  const lastTrackIndex = usePlayerStore((s) => s.lastTrackIndex);
+  const lastPosition = usePlayerStore((s) => s.lastPosition);
+  const restoreQueue = usePlayerStore((s) => s.restoreQueue);
   const hasRestoredRef = useRef(false);
 
-  // 앱 시작 시 마지막 재생 큐/곡 복원
+  // 앱 시작 시 마지막 재생 큐/곡 복원 (1회)
   useEffect(() => {
-    if (!hasRestoredRef.current && lastQueue.length > 0) {
-      hasRestoredRef.current = true;
-      restoreQueue(lastQueue, lastTrackIndex, lastPosition);
-    }
+    if (hasRestoredRef.current) return;
+    if (lastQueue.length === 0) return;
+    hasRestoredRef.current = true;
+    restoreQueue(lastQueue, lastTrackIndex, lastPosition);
   }, [lastPosition, lastQueue, lastTrackIndex, restoreQueue]);
 
   return null;
