@@ -255,15 +255,19 @@ export const usePlayerStore = create<PlayerState>()(
         set({ currentIndex: nextIndex, position: 0, isPlaying: true, lastTrackIndex: nextIndex, lastPosition: 0 });
       },
 
+      // 항상 이전 트랙으로 이동한다.
+      // "5초 이내에 누르면 이전 곡 / 그 이후에는 처음부터" 로직은
+      // TrackPlayer의 실시간 position을 읽을 수 있는 audio-player-context에서 처리한다.
       playPrev: () => {
-        const { queue, currentIndex, position } = get();
+        const { queue, currentIndex } = get();
         if (queue.length === 0) return;
-        if (position > 3000) {
-          set({ position: 0, lastPosition: 0 });
-        } else {
-          const prevIndex = currentIndex > 0 ? currentIndex - 1 : queue.length - 1;
-          set({ currentIndex: prevIndex, position: 0, lastTrackIndex: prevIndex, lastPosition: 0 });
-        }
+        const prevIndex = currentIndex > 0 ? currentIndex - 1 : queue.length - 1;
+        set({
+          currentIndex: prevIndex,
+          position: 0,
+          lastTrackIndex: prevIndex,
+          lastPosition: 0,
+        });
       },
 
       addTrackToNextInQueue: (track) =>

@@ -47,14 +47,13 @@ export default function PlayerScreen() {
   const position = usePlayerStore((s) => s.position);
   const duration = usePlayerStore((s) => s.duration);
   const playNext = usePlayerStore((s) => s.playNext);
-  const playPrev = usePlayerStore((s) => s.playPrev);
   const repeatMode = usePlayerStore((s) => s.repeatMode);
   const toggleRepeat = usePlayerStore((s) => s.toggleRepeat);
   const playbackRate = usePlayerStore((s) => s.playbackRate);
   const setPlaybackRate = usePlayerStore((s) => s.setPlaybackRate);
   const sleepTimerEndAt = usePlayerStore((s) => s.sleepTimerEndAt);
   const setSleepTimerMinutes = usePlayerStore((s) => s.setSleepTimerMinutes);
-  const { togglePlay, seekTo } = useAudioControl();
+  const { togglePlay, seekTo, playPrev } = useAudioControl();
 
   const [sleepModalVisible, setSleepModalVisible] = useState(false);
   const [rateModalVisible, setRateModalVisible] = useState(false);

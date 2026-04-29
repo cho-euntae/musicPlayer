@@ -16,12 +16,19 @@ import { useCurrentTrack, usePlayerStore, type Track as PlayerTrack } from '@/st
 interface AudioPlayerContextValue {
   togglePlay: () => void;
   seekTo: (positionMs: number) => void;
+  // 5초 이내면 이전 트랙, 5초 이후면 현재 곡 처음부터.
+  playPrev: () => void;
 }
 
 const AudioPlayerContext = createContext<AudioPlayerContextValue>({
   togglePlay: () => {},
   seekTo: () => {},
+  playPrev: () => {},
 });
+
+// 5초 이내에 "이전" 버튼을 누르면 진짜 이전 곡으로,
+// 5초 이후에 누르면 현재 곡을 처음부터 다시 재생한다.
+const SMART_PREV_THRESHOLD_MS = 5000;
 
 const PLAYER_CAPABILITIES = [
   Capability.Play,
@@ -374,8 +381,26 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     });
   }, []);
 
+  const playPrev = useCallback(() => {
+    void safeTrackPlayerCall('playPrev', async () => {
+      await ensurePlayerSetup();
+      const { position } = await TrackPlayer.getProgress();
+      const positionMs = (position ?? 0) * 1000;
+
+      if (positionMs > SMART_PREV_THRESHOLD_MS) {
+        // 현재 곡을 처음부터 다시 재생.
+        await TrackPlayer.seekTo(0);
+        usePlayerStore.getState().setPosition(0);
+        return;
+      }
+
+      // 진짜 이전 트랙으로 이동.
+      usePlayerStore.getState().playPrev();
+    });
+  }, [ensurePlayerSetup]);
+
   return (
-    <AudioPlayerContext.Provider value={{ togglePlay, seekTo }}>
+    <AudioPlayerContext.Provider value={{ togglePlay, seekTo, playPrev }}>
       {children}
     </AudioPlayerContext.Provider>
   );
