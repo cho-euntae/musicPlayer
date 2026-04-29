@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Dimensions, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useCurrentTrack, usePlayerStore } from '@/store/player-store';
@@ -9,6 +10,7 @@ import { ProgressBar } from '@/components/player/progress-bar';
 import { Controls } from '@/components/player/controls';
 import { OptionsSheetModal } from '@/components/options-sheet-modal';
 import { TrackArtwork } from '@/components/track-artwork';
+import { useArtworkColors } from '@/hooks/use-artwork-colors';
 
 const SLEEP_TIMER_OPTIONS = [
   { value: 0, label: '타이머 끄기' },
@@ -58,6 +60,7 @@ export default function PlayerScreen() {
   const setLoopStart = usePlayerStore((s) => s.setLoopStart);
   const setLoopEnd = usePlayerStore((s) => s.setLoopEnd);
   const { togglePlay, seekTo, playPrev, skipBy } = useAudioControl();
+  const palette = useArtworkColors(currentTrack?.artwork);
 
   const [sleepModalVisible, setSleepModalVisible] = useState(false);
   const [rateModalVisible, setRateModalVisible] = useState(false);
@@ -130,19 +133,28 @@ export default function PlayerScreen() {
 
   if (!currentTrack) {
     return (
-      <SafeAreaView style={styles.container}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-          <Ionicons name="chevron-down" size={28} color="#fff" />
-        </TouchableOpacity>
-        <View style={styles.empty}>
-          <Ionicons name="musical-notes-outline" size={64} color="#555" />
-          <Text style={styles.emptyText}>재생 중인 곡이 없습니다</Text>
-        </View>
-      </SafeAreaView>
+      <LinearGradient
+        colors={[palette.primary, palette.secondary, '#0a0a0a']}
+        style={styles.gradient}
+      >
+        <SafeAreaView style={styles.container}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
+            <Ionicons name="chevron-down" size={28} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.empty}>
+            <Ionicons name="musical-notes-outline" size={64} color="#555" />
+            <Text style={styles.emptyText}>재생 중인 곡이 없습니다</Text>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
     );
   }
 
   return (
+    <LinearGradient
+      colors={[palette.primary, palette.secondary, '#0a0a0a']}
+      style={styles.gradient}
+    >
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
@@ -325,13 +337,18 @@ export default function PlayerScreen() {
         onClose={() => setRateModalVisible(false)}
       />
     </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  gradient: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+    // 배경은 LinearGradient가 그리므로 투명.
+    backgroundColor: 'transparent',
     padding: 24,
     gap: 24,
   },
