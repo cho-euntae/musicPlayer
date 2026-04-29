@@ -97,7 +97,7 @@
 - [x] 통화녹음 숨기기 on/off
 - [x] 최근 재생 저장 개수 설정
 - [x] 기본 정렬 방식 설정
-- [x] 테마 설정 (다크/라이트) — 선택값 영속화 (라이트 테마 시각 적용은 후속)
+- [x] 테마 설정 (시스템/다크/라이트) — 시스템 자동 추종, 설정 화면 + 상태바 시각 적용 (다른 화면은 점진적 확장 예정)
 
 ### 빌드 / 배포
 
@@ -107,6 +107,15 @@
 ---
 
 ## 작업 로그
+
+### 2026-04-29 (사용자 편의성 5종 스프린트)
+
+- 미니플레이어 제스처 추가: `react-native-gesture-handler`의 `PanGestureHandler`로 좌(다음 곡) / 우(이전 곡, 스마트) / 위(풀스크린 열기) / 아래(큐 비우고 닫기) 스와이프 지원. `activeOffsetX/Y=12`로 일반 탭(재생/다음 버튼)과 분리, 거리 50dp 또는 속도 600dp/s 임계값 만족 시 인식. `expo-haptics`로 가벼운 햅틱 피드백
+- 똑똑한 "이전 곡" 버튼: `audio-player-context`에 `playPrev` 신규. `TrackPlayer.getProgress()`의 실시간 position을 읽어 5초 이내면 스토어 `playPrev()`로 진짜 이전 트랙 이동, 5초 이후면 `seekTo(0)`으로 현재 곡 처음부터. 스토어 `playPrev`는 단순화(항상 이전 트랙으로). 기존 3초 임계값 → 5초로 확장
+- ±10초 / ±30초 스킵 버튼: `audio-player-context`에 `skipBy(deltaMs)` 신규, 현재 위치 + delta를 트랙 길이로 클램프하여 시킹. 풀스크린 플레이어 진행 바 아래에 4개 버튼 칩 row 추가 (-30 / -10 / +10 / +30)
+- 앨범 아트 표시: `components/track-artwork.tsx` 신규 — `<Image>` 로드 시도 → `onError` fallback으로 트랙 ID 해시 기반 12색 팔레트 + 첫 글자(한글/영문/숫자/이모지 모두 한 글자) 카드. `use-media-library`에서 Android `albumId` 존재 시 `content://media/external/audio/albumart/<id>` URI를 `track.artwork`에 자동 매핑(미디어스토어 표준). 트랙 리스트, 미니플레이어, 풀스크린 플레이어 3곳에 적용. iOS/aritwork 부재 시 모두 fallback이 자동 표시
+- 시스템 테마 자동 추종: `hooks/use-theme.ts` 신규 — `RN useColorScheme()`과 스토어 `themeMode`를 결합해 effective scheme + ThemeColors 토큰 반환. `themeMode='system'`이면 디바이스 다크/라이트 따라 자동 전환. `app/_layout.tsx`의 StatusBar를 `<ThemedStatusBar />`로 분리해 색상도 자동 전환. `app/settings.tsx`를 `createStyles(colors)` 패턴으로 리팩토링해 라이트/다크 양쪽 시각 적용. 기타 화면(Home/Library/Playlists/Player/MiniPlayer 등)은 점진적 적용 예정
+- 검증: `npx tsc --noEmit` (`app-example/` 템플릿 제외 오류 없음), `npm run lint` 통과
 
 ### 2026-04-29 (B-2 스프린트)
 
