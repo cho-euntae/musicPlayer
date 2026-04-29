@@ -1,10 +1,17 @@
-import { useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Text, TouchableOpacity, StyleSheet, View } from 'react-native';
 import {
   PanGestureHandler,
   State,
   type PanGestureHandlerStateChangeEvent,
 } from 'react-native-gesture-handler';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -17,6 +24,9 @@ import { TrackArtwork } from '@/components/track-artwork';
 const SWIPE_DISTANCE_THRESHOLD = 50;
 const SWIPE_VELOCITY_THRESHOLD = 600;
 const ACTIVE_OFFSET = 12;
+
+// 첫 등장 시 아래에서 위로 부드럽게 슬라이드인.
+const SLIDE_IN_OFFSET = 80;
 
 type SwipeDirection = 'left' | 'right' | 'up' | 'down' | null;
 
@@ -55,6 +65,27 @@ export function MiniPlayer() {
   const clearQueue = usePlayerStore((s) => s.clearQueue);
   const { togglePlay, playPrev } = useAudioControl();
   const lastHandledRef = useRef(0);
+
+  // 슬라이드인 / 페이드인 애니메이션. mount 시 80dp 아래 + 투명에서 시작해
+  // spring 모션으로 정착. 트랙이 바뀌어도 같은 컴포넌트 인스턴스이므로
+  // 매 트랙마다 다시 애니메이션되지는 않는다 (자연스러움).
+  const translateY = useSharedValue(SLIDE_IN_OFFSET);
+  const opacity = useSharedValue(0);
+
+  useEffect(() => {
+    if (currentTrack) {
+      translateY.value = withSpring(0, { damping: 18, stiffness: 180 });
+      opacity.value = withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) });
+    } else {
+      translateY.value = withTiming(SLIDE_IN_OFFSET, { duration: 180 });
+      opacity.value = withTiming(0, { duration: 180 });
+    }
+  }, [currentTrack, opacity, translateY]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+    opacity: opacity.value,
+  }));
 
   if (!currentTrack) return null;
 
@@ -100,7 +131,7 @@ export function MiniPlayer() {
       activeOffsetX={[-ACTIVE_OFFSET, ACTIVE_OFFSET]}
       activeOffsetY={[-ACTIVE_OFFSET, ACTIVE_OFFSET]}
     >
-      <View>
+      <Animated.View style={animatedStyle}>
         <TouchableOpacity
           style={styles.container}
           onPress={() => router.push('/player')}
@@ -142,7 +173,7 @@ export function MiniPlayer() {
             <Ionicons name="play-skip-forward" size={22} color="#fff" />
           </TouchableOpacity>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
     </PanGestureHandler>
   );
 }
