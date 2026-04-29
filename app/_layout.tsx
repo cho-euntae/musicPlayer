@@ -5,7 +5,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AudioPlayerProvider } from '@/context/audio-player-context';
 import { usePlayerStore } from '@/store/player-store';
 import { useMediaLibrary } from '@/hooks/use-media-library';
-import '@/services/register-track-player';
+// playback service 등록은 진입점(index.js)에서 처리한다.
+// 헤드리스 알림 액션 시 이 컴포넌트는 마운트되지 않기 때문이다.
 
 function AppInitializer() {
   useMediaLibrary();
