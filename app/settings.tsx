@@ -20,6 +20,7 @@ import {
   usePlayerStore,
 } from '@/store/player-store';
 import { useMediaLibrary } from '@/hooks/use-media-library';
+import { useTheme, type ThemeColors } from '@/hooks/use-theme';
 
 type ModalKind = 'sort' | 'limit' | 'theme';
 
@@ -48,6 +49,8 @@ export default function SettingsScreen() {
   const setThemeMode = usePlayerStore((s) => s.setThemeMode);
 
   const { refresh } = useMediaLibrary();
+  const { colors, scheme } = useTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   const [activeModal, setActiveModal] = useState<ModalKind | null>(null);
 
@@ -71,7 +74,7 @@ export default function SettingsScreen() {
 
   const themeOptions: OptionItem<ThemeMode>[] = useMemo(
     () => [
-      { value: 'system', label: THEME_LABELS.system },
+      { value: 'system', label: THEME_LABELS.system, hint: '디바이스 설정에 따라 자동 전환' },
       { value: 'dark', label: THEME_LABELS.dark },
       { value: 'light', label: THEME_LABELS.light },
     ],
@@ -102,19 +105,18 @@ export default function SettingsScreen() {
   const handleSelectTheme = (mode: ThemeMode) => {
     setThemeMode(mode);
     setActiveModal(null);
-    if (mode !== 'dark') {
-      Alert.alert(
-        '테마 적용 예정',
-        '현재 빌드에서는 다크 테마만 시각적으로 반영됩니다. 선택한 값은 저장되며, 추후 라이트 테마 작업이 끝나면 자동으로 적용됩니다.',
-      );
-    }
   };
+
+  const themeDescription =
+    themeMode === 'system'
+      ? `시스템 설정을 따라 ${scheme === 'light' ? '라이트' : '다크'} 테마로 표시 중`
+      : '설정 화면에 우선 적용되며, 다른 화면도 점진적으로 반영됩니다';
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn} hitSlop={8}>
-          <Ionicons name="arrow-back" size={22} color="#fff" />
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.title}>설정</Text>
         <View style={styles.headerBtn} />
@@ -134,8 +136,8 @@ export default function SettingsScreen() {
             <Switch
               value={hideCallRecordings}
               onValueChange={handleToggleHideCallRecordings}
-              thumbColor={hideCallRecordings ? '#1DB954' : '#888'}
-              trackColor={{ false: '#2a2a2a', true: '#1f4730' }}
+              thumbColor={hideCallRecordings ? colors.switchThumbOn : colors.switchThumbOff}
+              trackColor={{ false: colors.switchTrackOff, true: colors.switchTrackOn }}
             />
           </View>
 
@@ -148,7 +150,7 @@ export default function SettingsScreen() {
             </View>
             <View style={styles.rowValueWrap}>
               <Text style={styles.rowValue}>{SORT_LABELS[librarySortMode]}</Text>
-              <Ionicons name="chevron-forward" size={18} color="#555" />
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
             </View>
           </TouchableOpacity>
         </View>
@@ -165,7 +167,7 @@ export default function SettingsScreen() {
             </View>
             <View style={styles.rowValueWrap}>
               <Text style={styles.rowValue}>{recentlyPlayedLimit}곡</Text>
-              <Ionicons name="chevron-forward" size={18} color="#555" />
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
             </View>
           </TouchableOpacity>
         </View>
@@ -176,11 +178,11 @@ export default function SettingsScreen() {
           <TouchableOpacity style={styles.row} onPress={() => setActiveModal('theme')}>
             <View style={styles.rowText}>
               <Text style={styles.rowTitle}>화면 테마</Text>
-              <Text style={styles.rowDesc}>현재 다크 테마만 적용됩니다 (라이트 테마는 추후)</Text>
+              <Text style={styles.rowDesc}>{themeDescription}</Text>
             </View>
             <View style={styles.rowValueWrap}>
               <Text style={styles.rowValue}>{THEME_LABELS[themeMode]}</Text>
-              <Ionicons name="chevron-forward" size={18} color="#555" />
+              <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
             </View>
           </TouchableOpacity>
         </View>
@@ -218,90 +220,92 @@ export default function SettingsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0f1110',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 12,
-  },
-  headerBtn: {
-    width: 32,
-    alignItems: 'center',
-  },
-  title: {
-    flex: 1,
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  content: {
-    paddingHorizontal: 16,
-    paddingBottom: 32,
-    gap: 12,
-  },
-  sectionTitle: {
-    color: '#5d8f6d',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    marginTop: 12,
-    marginBottom: 4,
-  },
-  card: {
-    backgroundColor: '#171a18',
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#232825',
-    overflow: 'hidden',
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  rowText: {
-    flex: 1,
-    gap: 4,
-  },
-  rowTitle: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  rowDesc: {
-    color: '#7a857f',
-    fontSize: 12,
-    lineHeight: 17,
-  },
-  rowValueWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  rowValue: {
-    color: '#cfd6d2',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#222724',
-    marginHorizontal: 16,
-  },
-  footnote: {
-    color: '#5b6661',
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 16,
-  },
-});
+function createStyles(colors: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.bg,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      paddingBottom: 12,
+    },
+    headerBtn: {
+      width: 32,
+      alignItems: 'center',
+    },
+    title: {
+      flex: 1,
+      color: colors.text,
+      fontSize: 20,
+      fontWeight: '700',
+      textAlign: 'center',
+    },
+    content: {
+      paddingHorizontal: 16,
+      paddingBottom: 32,
+      gap: 12,
+    },
+    sectionTitle: {
+      color: colors.sectionLabel,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+      marginTop: 12,
+      marginBottom: 4,
+    },
+    card: {
+      backgroundColor: colors.bgElevated,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: 'hidden',
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      gap: 12,
+    },
+    rowText: {
+      flex: 1,
+      gap: 4,
+    },
+    rowTitle: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    rowDesc: {
+      color: colors.textMuted,
+      fontSize: 12,
+      lineHeight: 17,
+    },
+    rowValueWrap: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    rowValue: {
+      color: colors.textSecondary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    divider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginHorizontal: 16,
+    },
+    footnote: {
+      color: colors.textMuted,
+      fontSize: 12,
+      textAlign: 'center',
+      marginTop: 16,
+    },
+  });
+}

@@ -5,8 +5,15 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AudioPlayerProvider } from '@/context/audio-player-context';
 import { usePlayerStore } from '@/store/player-store';
 import { useMediaLibrary } from '@/hooks/use-media-library';
+import { useTheme } from '@/hooks/use-theme';
 // playback service 등록은 진입점(index.js)에서 처리한다.
 // 헤드리스 알림 액션 시 이 컴포넌트는 마운트되지 않기 때문이다.
+
+// 테마(다크/라이트/시스템)에 맞춰 상태바 색상을 자동 전환한다.
+function ThemedStatusBar() {
+  const { scheme } = useTheme();
+  return <StatusBar style={scheme === 'light' ? 'dark' : 'light'} />;
+}
 
 function AppInitializer() {
   useMediaLibrary();
@@ -32,7 +39,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <AudioPlayerProvider>
         <AppInitializer />
-        <StatusBar style="light" />
+        <ThemedStatusBar />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen
