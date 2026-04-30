@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Dimensions, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import {
+  Dimensions,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
@@ -173,7 +180,7 @@ export default function PlayerScreen() {
         primary={palette.primary}
         secondary={palette.secondary}
       >
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={styles.safeArea}>
           <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
             <Ionicons name="chevron-down" size={28} color="#fff" />
           </TouchableOpacity>
@@ -192,7 +199,11 @@ export default function PlayerScreen() {
       primary={palette.primary}
       secondary={palette.secondary}
     >
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.safeArea}>
+        <ScrollView
+          contentContainerStyle={styles.container}
+          showsVerticalScrollIndicator={false}
+        >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
           <Ionicons name="chevron-down" size={28} color="#fff" />
@@ -373,17 +384,24 @@ export default function PlayerScreen() {
         }}
         onClose={() => setRateModalVisible(false)}
       />
+        </ScrollView>
       </SafeAreaView>
     </PlayerBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     // 배경은 LinearGradient가 그리므로 투명.
     backgroundColor: 'transparent',
+  },
+  container: {
+    // 작은 화면에서도 모든 컨트롤(셔플/이전/재생/다음/반복)이 닿도록
+    // ScrollView contentContainer로 사용. 화면이 충분히 크면 콘텐츠가 정렬되고
+    // 작으면 스크롤 가능.
     padding: 24,
+    paddingBottom: 32,
     gap: 24,
   },
   header: {
