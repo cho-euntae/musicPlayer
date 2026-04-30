@@ -380,16 +380,49 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     }
   }, [addToRecentlyPlayed, currentTrack?.id, incrementTrackPlayCount]);
 
+  // 마지막 재생 위치를 주기적으로 AsyncStorage에 저장한다.
+  // 배터리 절약: 인터벌을 5초 -> 15초로 늘리고, 앱이 백그라운드로 가면
+  // 즉시 한 번 저장 후 인터벌을 멈춘다. 포그라운드 복귀 시 다시 시작.
+  // 화면이 꺼진 채로 재생 중일 때 발생하던 720회/h -> 0회/h 디스크 IO.
   useEffect(() => {
     if (!isPlaying) {
       return;
     }
 
-    const interval = setInterval(() => {
-      savePlaybackState(latestProgressRef.current * 1000);
-    }, 5000);
+    let intervalId: ReturnType<typeof setInterval> | null = null;
 
-    return () => clearInterval(interval);
+    const startInterval = () => {
+      if (intervalId !== null) return;
+      intervalId = setInterval(() => {
+        savePlaybackState(latestProgressRef.current * 1000);
+      }, 15000);
+    };
+
+    const stopInterval = () => {
+      if (intervalId !== null) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    if (AppState.currentState === 'active') {
+      startInterval();
+    }
+
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') {
+        startInterval();
+      } else {
+        // 백그라운드 진입 직전에 한 번 저장해 위치 손실을 최소화.
+        savePlaybackState(latestProgressRef.current * 1000);
+        stopInterval();
+      }
+    });
+
+    return () => {
+      stopInterval();
+      subscription.remove();
+    };
   }, [isPlaying, savePlaybackState]);
 
   const togglePlay = useCallback(() => {
