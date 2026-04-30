@@ -100,6 +100,7 @@
 - [x] 최근 재생 저장 개수 설정
 - [x] 기본 정렬 방식 설정
 - [x] 테마 설정 (시스템/다크/라이트) — 시스템 자동 추종, 설정 화면 + 상태바 시각 적용 (다른 화면은 점진적 확장 예정)
+- [x] 배터리 절약 모드 — BlurView/LinearGradient/image-colors OFF 토글
 
 ### 빌드 / 배포
 
@@ -109,6 +110,17 @@
 ---
 
 ## 작업 로그
+
+### 2026-04-29 (배터리 최적화 스프린트)
+
+- 마지막 재생 위치 저장 주기 5초 -> 15초 (시간당 720회 -> 240회 AsyncStorage 쓰기)
+- AppState 'change' 리스너로 백그라운드 진입 시 즉시 한 번 저장 후 인터벌 정지, 포그라운드 복귀 시 재시작 — 화면 꺼진 채 재생할 때 디스크 IO 0회/h
+- 배터리 절약 모드 토글 신규 (`batterySaverEnabled`, partialize). 활성 시:
+  * 미니플레이어 / 바텀시트 BlurView 미렌더 (단색 반투명만 사용 → GPU 절감)
+  * 풀스크린 플레이어 LinearGradient 대신 단색 다크 배경
+  * react-native-image-colors의 getColors 호출 자체를 스킵 (트랙 변경 시 dominant 색 추출 비용 0)
+- `app/player.tsx`의 배경 처리를 모듈 스코프 `PlayerBackground` 컴포넌트로 분리해 컴포넌트 정체성 고정 (함수 내부에서 정의하면 매 렌더마다 새 컴포넌트로 인식돼 자식이 unmount/remount되는 함정 회피)
+- 검증: `npx tsc --noEmit` 통과, `npm run lint` 통과
 
 ### 2026-04-29 (A-B 반복 + 라이브러리 폴리싱 스프린트)
 
