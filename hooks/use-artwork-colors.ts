@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getColors, type ImageColorsResult } from 'react-native-image-colors';
+import { usePlayerStore } from '@/store/player-store';
 
 export interface ArtworkPalette {
   // 풀스크린 배경 그라디언트의 윗부분
@@ -61,6 +62,8 @@ function mapToPalette(result: ImageColorsResult): ArtworkPalette {
 export function useArtworkColors(
   artworkUri: string | undefined,
 ): ArtworkPalette {
+  const batterySaverEnabled = usePlayerStore((s) => s.batterySaverEnabled);
+
   const [palette, setPalette] = useState<ArtworkPalette>(() =>
     artworkUri && paletteCache.has(artworkUri)
       ? paletteCache.get(artworkUri)!
@@ -68,6 +71,11 @@ export function useArtworkColors(
   );
 
   useEffect(() => {
+    // 배터리 절약 모드: 추출 자체를 건너뛰고 다크 fallback만 사용.
+    if (batterySaverEnabled) {
+      setPalette(FALLBACK_PALETTE);
+      return;
+    }
     if (!artworkUri) {
       setPalette(FALLBACK_PALETTE);
       return;
@@ -103,7 +111,7 @@ export function useArtworkColors(
     return () => {
       cancelled = true;
     };
-  }, [artworkUri]);
+  }, [artworkUri, batterySaverEnabled]);
 
   return palette;
 }

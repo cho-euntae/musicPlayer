@@ -35,6 +35,40 @@ const PLAYBACK_RATE_OPTIONS = [
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const ARTWORK_SIZE = Math.min(SCREEN_WIDTH - 48, 320);
 
+// 풀스크린 플레이어 배경: 배터리 절약 모드면 단색, 아니면 동적 팔레트 그라디언트.
+// 모듈 스코프에 정의해 컴포넌트 정체성을 고정한다 (PlayerScreen 내부에 두면
+// 매 렌더마다 새로운 컴포넌트 타입이 되어 자식이 unmount/remount된다).
+interface PlayerBackgroundProps {
+  saver: boolean;
+  primary: string;
+  secondary: string;
+  children: React.ReactNode;
+}
+
+function PlayerBackground({
+  saver,
+  primary,
+  secondary,
+  children,
+}: PlayerBackgroundProps) {
+  if (saver) {
+    return <View style={backgroundStyles.solid}>{children}</View>;
+  }
+  return (
+    <LinearGradient
+      colors={[primary, secondary, '#0a0a0a']}
+      style={backgroundStyles.gradient}
+    >
+      {children}
+    </LinearGradient>
+  );
+}
+
+const backgroundStyles = StyleSheet.create({
+  gradient: { flex: 1 },
+  solid: { flex: 1, backgroundColor: '#0a0a0a' },
+});
+
 function formatRemaining(ms: number): string {
   if (ms <= 0) return '';
   const totalSec = Math.ceil(ms / 1000);
@@ -59,6 +93,7 @@ export default function PlayerScreen() {
   const loopEnd = usePlayerStore((s) => s.loopEnd);
   const setLoopStart = usePlayerStore((s) => s.setLoopStart);
   const setLoopEnd = usePlayerStore((s) => s.setLoopEnd);
+  const batterySaverEnabled = usePlayerStore((s) => s.batterySaverEnabled);
   const { togglePlay, seekTo, playPrev, skipBy } = useAudioControl();
   const palette = useArtworkColors(currentTrack?.artwork);
 
@@ -133,9 +168,10 @@ export default function PlayerScreen() {
 
   if (!currentTrack) {
     return (
-      <LinearGradient
-        colors={[palette.primary, palette.secondary, '#0a0a0a']}
-        style={styles.gradient}
+      <PlayerBackground
+        saver={batterySaverEnabled}
+        primary={palette.primary}
+        secondary={palette.secondary}
       >
         <SafeAreaView style={styles.container}>
           <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
@@ -146,14 +182,15 @@ export default function PlayerScreen() {
             <Text style={styles.emptyText}>재생 중인 곡이 없습니다</Text>
           </View>
         </SafeAreaView>
-      </LinearGradient>
+      </PlayerBackground>
     );
   }
 
   return (
-    <LinearGradient
-      colors={[palette.primary, palette.secondary, '#0a0a0a']}
-      style={styles.gradient}
+    <PlayerBackground
+      saver={batterySaverEnabled}
+      primary={palette.primary}
+      secondary={palette.secondary}
     >
       <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -337,14 +374,11 @@ export default function PlayerScreen() {
         onClose={() => setRateModalVisible(false)}
       />
       </SafeAreaView>
-    </LinearGradient>
+    </PlayerBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  },
   container: {
     flex: 1,
     // 배경은 LinearGradient가 그리므로 투명.

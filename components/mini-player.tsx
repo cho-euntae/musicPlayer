@@ -64,6 +64,7 @@ export function MiniPlayer() {
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const playNext = usePlayerStore((s) => s.playNext);
   const clearQueue = usePlayerStore((s) => s.clearQueue);
+  const batterySaverEnabled = usePlayerStore((s) => s.batterySaverEnabled);
   const { togglePlay, playPrev } = useAudioControl();
   const lastHandledRef = useRef(0);
 
@@ -138,13 +139,15 @@ export function MiniPlayer() {
           onPress={() => router.push('/player')}
           activeOpacity={0.95}
         >
-          {/* 프로스티드 글래스 배경: 컨테이너 안쪽을 가득 채우는 BlurView */}
-          <BlurView
-            intensity={45}
-            tint="dark"
-            style={StyleSheet.absoluteFill}
-            pointerEvents="none"
-          />
+          {/* 프로스티드 글래스 배경: 배터리 절약 모드면 단색 반투명만 사용. */}
+          {!batterySaverEnabled && (
+            <BlurView
+              intensity={45}
+              tint="dark"
+              style={StyleSheet.absoluteFill}
+              pointerEvents="none"
+            />
+          )}
           <TrackArtwork
             artwork={currentTrack.artwork}
             title={currentTrack.title}

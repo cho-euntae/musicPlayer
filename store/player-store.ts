@@ -80,6 +80,9 @@ interface PlayerState {
   hideCallRecordings: boolean;
   recentlyPlayedLimit: RecentlyPlayedLimit;
   themeMode: ThemeMode;
+  // 배터리 절약 모드: BlurView, LinearGradient, image-colors 추출을 모두
+  // 비활성화하여 GPU/CPU 부담을 줄인다.
+  batterySaverEnabled: boolean;
 
   // 재생 액션
   setLibraryTracks: (tracks: Track[]) => void;
@@ -125,6 +128,7 @@ interface PlayerState {
   setHideCallRecordings: (hide: boolean) => void;
   setRecentlyPlayedLimit: (limit: RecentlyPlayedLimit) => void;
   setThemeMode: (mode: ThemeMode) => void;
+  setBatterySaverEnabled: (enabled: boolean) => void;
 
   // 플레이리스트 액션
   createPlaylist: (name: string) => string;
@@ -163,6 +167,7 @@ export const usePlayerStore = create<PlayerState>()(
       hideCallRecordings: true,
       recentlyPlayedLimit: 50,
       themeMode: 'system',
+      batterySaverEnabled: false,
 
       setLibraryTracks: (tracks) => set({ libraryTracks: tracks }),
 
@@ -474,6 +479,8 @@ export const usePlayerStore = create<PlayerState>()(
 
       setThemeMode: (mode) => set({ themeMode: mode }),
 
+      setBatterySaverEnabled: (enabled) => set({ batterySaverEnabled: enabled }),
+
       createPlaylist: (name) => {
         const id = `playlist_${Date.now()}`;
         set((s) => ({
@@ -571,6 +578,7 @@ export const usePlayerStore = create<PlayerState>()(
         hideCallRecordings: s.hideCallRecordings,
         recentlyPlayedLimit: s.recentlyPlayedLimit,
         themeMode: s.themeMode,
+        batterySaverEnabled: s.batterySaverEnabled,
       }),
       // 구버전 데이터 마이그레이션 (trackIds → tracks)
       migrate: (persistedState: any, version: number) => {

@@ -42,11 +42,13 @@ export default function SettingsScreen() {
   const librarySortMode = usePlayerStore((s) => s.librarySortMode);
   const themeMode = usePlayerStore((s) => s.themeMode);
   const recentlyPlayedCount = usePlayerStore((s) => s.recentlyPlayed.length);
+  const batterySaverEnabled = usePlayerStore((s) => s.batterySaverEnabled);
 
   const setHideCallRecordings = usePlayerStore((s) => s.setHideCallRecordings);
   const setRecentlyPlayedLimit = usePlayerStore((s) => s.setRecentlyPlayedLimit);
   const setLibrarySortMode = usePlayerStore((s) => s.setLibrarySortMode);
   const setThemeMode = usePlayerStore((s) => s.setThemeMode);
+  const setBatterySaverEnabled = usePlayerStore((s) => s.setBatterySaverEnabled);
 
   const { refresh } = useMediaLibrary();
   const { colors, scheme } = useTheme();
@@ -185,6 +187,26 @@ export default function SettingsScreen() {
               <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
             </View>
           </TouchableOpacity>
+        </View>
+
+        {/* 배터리 */}
+        <Text style={styles.sectionTitle}>배터리</Text>
+        <View style={styles.card}>
+          <View style={styles.row}>
+            <View style={styles.rowText}>
+              <Text style={styles.rowTitle}>배터리 절약 모드</Text>
+              <Text style={styles.rowDesc}>
+                미니플레이어/바텀시트의 블러, 풀스크린 그라디언트, 앨범 아트 색 추출을 끕니다.
+                시각 효과가 단순해지는 대신 GPU/CPU 부담이 줄어듭니다.
+              </Text>
+            </View>
+            <Switch
+              value={batterySaverEnabled}
+              onValueChange={setBatterySaverEnabled}
+              thumbColor={batterySaverEnabled ? colors.switchThumbOn : colors.switchThumbOff}
+              trackColor={{ false: colors.switchTrackOff, true: colors.switchTrackOn }}
+            />
+          </View>
         </View>
 
         <Text style={styles.footnote}>설정은 자동 저장됩니다.</Text>

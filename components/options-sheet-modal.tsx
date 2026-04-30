@@ -8,6 +8,7 @@ import {
   BottomSheetView,
 } from '@gorhom/bottom-sheet';
 import { BlurView } from 'expo-blur';
+import { usePlayerStore } from '@/store/player-store';
 
 export interface OptionItem<V> {
   value: V;
@@ -38,6 +39,7 @@ export function OptionsSheetModal<V>({
   onClose,
 }: OptionsSheetModalProps<V>) {
   const sheetRef = useRef<BottomSheetModal>(null);
+  const batterySaverEnabled = usePlayerStore((s) => s.batterySaverEnabled);
 
   useEffect(() => {
     if (visible) {
@@ -71,12 +73,14 @@ export function OptionsSheetModal<V>({
     >
       <BottomSheetView style={styles.content}>
         {/* 시트 표면을 frosted 글래스로 처리하여 부드러운 깊이감 부여 */}
-        <BlurView
-          intensity={55}
-          tint="dark"
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        />
+        {!batterySaverEnabled && (
+          <BlurView
+            intensity={55}
+            tint="dark"
+            style={StyleSheet.absoluteFill}
+            pointerEvents="none"
+          />
+        )}
         <View style={styles.header}>
           <Text style={styles.title}>{title}</Text>
           {description ? <Text style={styles.description}>{description}</Text> : null}
