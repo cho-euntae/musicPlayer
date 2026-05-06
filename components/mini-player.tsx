@@ -63,7 +63,6 @@ export function MiniPlayer() {
   const currentTrack = useCurrentTrack();
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const playNext = usePlayerStore((s) => s.playNext);
-  const clearQueue = usePlayerStore((s) => s.clearQueue);
   const batterySaverEnabled = usePlayerStore((s) => s.batterySaverEnabled);
   const { togglePlay, playPrev } = useAudioControl();
   const lastHandledRef = useRef(0);
@@ -107,6 +106,13 @@ export function MiniPlayer() {
 
     if (!direction) return;
 
+    // 스와이프 다운은 의도적으로 무시한다.
+    // 과거에는 큐 전체를 날리고(clearQueue) 재생을 멈췄지만, 의도와 달리
+    // 사용자의 큐를 파괴적으로 비워 곡 목록이 사라지는 사고가 발생했다.
+    // "닫기"가 필요하면 풀스크린 플레이어 진입 후 chevron-down으로 내려가거나
+    // queue 화면의 휴지통 버튼으로 명시적으로 비우면 된다.
+    if (direction === 'down') return;
+
     lastHandledRef.current = now;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
@@ -119,10 +125,6 @@ export function MiniPlayer() {
         break;
       case 'up':
         router.push('/player');
-        break;
-      case 'down':
-        // 미니플레이어 닫기: 큐 비우고 재생 정지.
-        clearQueue();
         break;
     }
   };
