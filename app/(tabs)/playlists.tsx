@@ -6,11 +6,15 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { usePlayerStore } from '@/store/player-store';
+import { usePlayerStore, type Playlist } from '@/store/player-store';
 
 export default function PlaylistsScreen() {
-  const { favorites, recentlyPlayed, playlists, createPlaylist, deletePlaylist } =
-    usePlayerStore();
+  // 셀렉터로 잘게 구독해 무관한 상태 변경에 리렌더되지 않도록 한다.
+  const favoritesCount = usePlayerStore((s) => s.favorites.length);
+  const recentlyPlayedCount = usePlayerStore((s) => s.recentlyPlayed.length);
+  const playlists = usePlayerStore((s) => s.playlists);
+  const createPlaylist = usePlayerStore((s) => s.createPlaylist);
+  const deletePlaylist = usePlayerStore((s) => s.deletePlaylist);
 
   const [modalVisible, setModalVisible] = useState(false);
   const [newName, setNewName] = useState('');
@@ -40,10 +44,25 @@ export default function PlaylistsScreen() {
       </View>
 
       <FlatList
-        data={[]}
-        keyExtractor={() => ''}
-        renderItem={null}
+        data={playlists}
+        keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
+        renderItem={({ item }: { item: Playlist }) => (
+          <TouchableOpacity
+            style={styles.playlistItem}
+            onPress={() => router.push(`/playlist/${item.id}`)}
+            onLongPress={() => handleDelete(item.id, item.name)}
+          >
+            <View style={[styles.playlistIcon, { backgroundColor: '#1a1a2a' }]}>
+              <Ionicons name="list" size={22} color="#9b59b6" />
+            </View>
+            <View style={styles.playlistInfo}>
+              <Text style={styles.playlistName}>{item.name}</Text>
+              <Text style={styles.playlistCount}>{item.tracks.length}곡</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#555" />
+          </TouchableOpacity>
+        )}
         ListHeaderComponent={
           <>
             {/* 자동 생성 플레이리스트 */}
@@ -58,7 +77,7 @@ export default function PlaylistsScreen() {
               </View>
               <View style={styles.playlistInfo}>
                 <Text style={styles.playlistName}>즐겨찾기</Text>
-                <Text style={styles.playlistCount}>{favorites.length}곡</Text>
+                <Text style={styles.playlistCount}>{favoritesCount}곡</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#555" />
             </TouchableOpacity>
@@ -72,55 +91,38 @@ export default function PlaylistsScreen() {
               </View>
               <View style={styles.playlistInfo}>
                 <Text style={styles.playlistName}>최근 재생</Text>
-                <Text style={styles.playlistCount}>{recentlyPlayed.length}곡</Text>
+                <Text style={styles.playlistCount}>{recentlyPlayedCount}곡</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#555" />
             </TouchableOpacity>
 
-            {/* 커스텀 플레이리스트 */}
+            {/* 커스텀 플레이리스트 섹션 헤더 */}
             {playlists.length > 0 && (
               <Text style={[styles.sectionTitle, { marginTop: 24 }]}>내 플레이리스트</Text>
             )}
           </>
         }
-        ListFooterComponent={
-          <>
-            {playlists.map((playlist) => (
-              <TouchableOpacity
-                key={playlist.id}
-                style={styles.playlistItem}
-                onPress={() => router.push(`/playlist/${playlist.id}`)}
-                onLongPress={() => handleDelete(playlist.id, playlist.name)}
-              >
-                <View style={[styles.playlistIcon, { backgroundColor: '#1a1a2a' }]}>
-                  <Ionicons name="list" size={22} color="#9b59b6" />
-                </View>
-                <View style={styles.playlistInfo}>
-                  <Text style={styles.playlistName}>{playlist.name}</Text>
-                  <Text style={styles.playlistCount}>{playlist.tracks.length}곡</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#555" />
-              </TouchableOpacity>
-            ))}
-
-            {playlists.length === 0 && (
-              <View style={styles.emptyBox}>
-                <View style={styles.emptyIconWrap}>
-                  <Ionicons name="albums-outline" size={44} color="#8b7ab3" />
-                </View>
-                <Text style={styles.emptyTitle}>아직 내 플레이리스트가 없습니다</Text>
-                <Text style={styles.emptyText}>자주 듣는 곡을 묶어두면 재생 흐름을 빠르게 시작할 수 있습니다.</Text>
-                <TouchableOpacity style={styles.emptyActionBtn} onPress={() => setModalVisible(true)}>
-                  <Text style={styles.emptyActionText}>첫 플레이리스트 만들기</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </>
+        ListEmptyComponent={
+          <View style={styles.emptyBox}>
+            <View style={styles.emptyIconWrap}>
+              <Ionicons name="albums-outline" size={44} color="#8b7ab3" />
+            </View>
+            <Text style={styles.emptyTitle}>아직 내 플레이리스트가 없습니다</Text>
+            <Text style={styles.emptyText}>자주 듣는 곡을 묶어두면 재생 흐름을 빠르게 시작할 수 있습니다.</Text>
+            <TouchableOpacity style={styles.emptyActionBtn} onPress={() => setModalVisible(true)}>
+              <Text style={styles.emptyActionText}>첫 플레이리스트 만들기</Text>
+            </TouchableOpacity>
+          </View>
         }
       />
 
       {/* 플레이리스트 생성 모달 */}
-      <Modal visible={modalVisible} transparent animationType="fade">
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setModalVisible(false); setNewName(''); }}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalBox}>
             <Text style={styles.modalTitle}>새 플레이리스트</Text>
