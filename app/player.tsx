@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { useCurrentTrack, usePlayerStore } from '@/store/player-store';
 import { useAudioControl } from '@/context/audio-player-context';
 import { ProgressBar } from '@/components/player/progress-bar';
@@ -199,8 +200,18 @@ export default function PlayerScreen() {
       primary={palette.primary}
       secondary={palette.secondary}
     >
+      {/*
+        BottomSheetModalProvider를 이 화면에서도 한 번 더 감싼다.
+        player 라우트는 Stack에서 presentation: 'modal'로 띄워지는데,
+        이 경우 iOS에선 native modal viewcontroller 위로 콘텐츠가 올라가지만
+        @gorhom/bottom-sheet의 portal은 root provider에 그려지므로
+        시트가 모달 화면 뒤로 깔려서 버튼이 안 보이거나 탭이 안 먹는다.
+        스크린-로컬 provider를 두면 시트가 이 화면 위로 올라온다.
+      */}
+      <BottomSheetModalProvider>
       <SafeAreaView style={styles.safeArea}>
         <ScrollView
+          style={styles.scroll}
           contentContainerStyle={styles.container}
           showsVerticalScrollIndicator={false}
         >
@@ -354,38 +365,44 @@ export default function PlayerScreen() {
         onPrev={playPrev}
         onNext={playNext}
       />
-
-      <OptionsSheetModal
-        visible={sleepModalVisible}
-        title="슬립 타이머"
-        description={
-          sleepActive
-            ? `현재 남은 시간 ${formatRemaining(remaining)}`
-            : '선택한 시간 뒤에 재생이 자동으로 정지됩니다.'
-        }
-        options={SLEEP_TIMER_OPTIONS}
-        selectedValue={sleepActive ? -1 : 0}
-        onSelect={(minutes) => {
-          setSleepTimerMinutes(minutes === 0 ? null : minutes);
-          setSleepModalVisible(false);
-        }}
-        onClose={() => setSleepModalVisible(false)}
-      />
-
-      <OptionsSheetModal
-        visible={rateModalVisible}
-        title="재생 속도"
-        description="곡의 진행 속도를 조절합니다. 설정은 영구 저장됩니다."
-        options={PLAYBACK_RATE_OPTIONS}
-        selectedValue={playbackRate}
-        onSelect={(rate) => {
-          setPlaybackRate(rate);
-          setRateModalVisible(false);
-        }}
-        onClose={() => setRateModalVisible(false)}
-      />
         </ScrollView>
+
+        {/*
+          BottomSheet는 portal로 그려지므로 ScrollView 콘텐츠 안에 두면
+          레이아웃에는 영향 없지만 코드 가독성이 떨어진다.
+          SafeAreaView 직속으로 빼서 트리 구조를 명확히 한다.
+        */}
+        <OptionsSheetModal
+          visible={sleepModalVisible}
+          title="슬립 타이머"
+          description={
+            sleepActive
+              ? `현재 남은 시간 ${formatRemaining(remaining)}`
+              : '선택한 시간 뒤에 재생이 자동으로 정지됩니다.'
+          }
+          options={SLEEP_TIMER_OPTIONS}
+          selectedValue={sleepActive ? -1 : 0}
+          onSelect={(minutes) => {
+            setSleepTimerMinutes(minutes === 0 ? null : minutes);
+            setSleepModalVisible(false);
+          }}
+          onClose={() => setSleepModalVisible(false)}
+        />
+
+        <OptionsSheetModal
+          visible={rateModalVisible}
+          title="재생 속도"
+          description="곡의 진행 속도를 조절합니다. 설정은 영구 저장됩니다."
+          options={PLAYBACK_RATE_OPTIONS}
+          selectedValue={playbackRate}
+          onSelect={(rate) => {
+            setPlaybackRate(rate);
+            setRateModalVisible(false);
+          }}
+          onClose={() => setRateModalVisible(false)}
+        />
       </SafeAreaView>
+      </BottomSheetModalProvider>
     </PlayerBackground>
   );
 }
@@ -395,6 +412,11 @@ const styles = StyleSheet.create({
     flex: 1,
     // 배경은 LinearGradient가 그리므로 투명.
     backgroundColor: 'transparent',
+  },
+  scroll: {
+    // SafeAreaView 안에서 ScrollView가 화면 전체 높이를 차지해
+    // 작은 화면에서도 잔여 영역이 스크롤 가능하도록 명시한다.
+    flex: 1,
   },
   container: {
     // 작은 화면에서도 모든 컨트롤(셔플/이전/재생/다음/반복)이 닿도록
