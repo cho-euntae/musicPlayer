@@ -202,6 +202,15 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     setIsPlaying(isPlaybackActive(playbackState.state));
   }, [playbackState.state, setIsPlaying]);
 
+  // 백업 경로: usePlaybackState 훅이 New Architecture(Fabric/Bridgeless)에서
+  // 가끔 상태 변화를 React 트리로 전달하지 못하는 케이스가 보고됐다.
+  // 이벤트 리스너로 직접 구독해 isPlaying을 갱신하는 보조 채널을 둔다.
+  useTrackPlayerEvents([Event.PlaybackState], (event) => {
+    if ('state' in event) {
+      setIsPlaying(isPlaybackActive(event.state));
+    }
+  });
+
   useEffect(() => {
     void safeTrackPlayerCall('setRepeatMode', async () => {
       await ensurePlayerSetup();
@@ -429,13 +438,23 @@ export function AudioPlayerProvider({ children }: { children: React.ReactNode })
     void safeTrackPlayerCall('togglePlay', async () => {
       await ensurePlayerSetup();
       const state = await TrackPlayer.getPlaybackState();
-      if (isPlaybackActive(state.state)) {
-        await TrackPlayer.pause();
-      } else {
-        await TrackPlayer.play();
+      const wasActive = isPlaybackActive(state.state);
+      // 낙관적 업데이트: native 응답을 기다리지 않고 UI를 즉시 반영해
+      // usePlaybackState 훅의 지연/누락에 영향받지 않게 한다.
+      // 실패 시 아래 try/catch로 원복.
+      setIsPlaying(!wasActive);
+      try {
+        if (wasActive) {
+          await TrackPlayer.pause();
+        } else {
+          await TrackPlayer.play();
+        }
+      } catch (error) {
+        setIsPlaying(wasActive);
+        throw error;
       }
     });
-  }, [ensurePlayerSetup]);
+  }, [ensurePlayerSetup, setIsPlaying]);
 
   const seekTo = useCallback((positionMs: number) => {
     void safeTrackPlayerCall('seekTo', async () => {
