@@ -84,6 +84,12 @@ interface PlayerState {
   // 비활성화하여 GPU/CPU 부담을 줄인다.
   batterySaverEnabled: boolean;
 
+  // 보컬 트레이너: 사용자가 측정한 음역대(MIDI 번호).
+  // null이면 아직 측정 안 함. 측정되면 스케일 연습의 기본 키 산정에 사용.
+  vocalRangeLowMidi: number | null;
+  vocalRangeHighMidi: number | null;
+  vocalRangeMeasuredAt: number | null; // epoch ms
+
   // 재생 액션
   setLibraryTracks: (tracks: Track[]) => void;
   setLibrarySortMode: (mode: LibrarySortMode) => void;
@@ -130,6 +136,10 @@ interface PlayerState {
   setThemeMode: (mode: ThemeMode) => void;
   setBatterySaverEnabled: (enabled: boolean) => void;
 
+  // 보컬 트레이너 액션
+  setVocalRange: (lowMidi: number, highMidi: number) => void;
+  clearVocalRange: () => void;
+
   // 플레이리스트 액션
   createPlaylist: (name: string) => string;
   savePlaylistFromTracks: (name: string, tracks: Track[]) => string;
@@ -168,6 +178,9 @@ export const usePlayerStore = create<PlayerState>()(
       recentlyPlayedLimit: 50,
       themeMode: 'system',
       batterySaverEnabled: false,
+      vocalRangeLowMidi: null,
+      vocalRangeHighMidi: null,
+      vocalRangeMeasuredAt: null,
 
       setLibraryTracks: (tracks) => set({ libraryTracks: tracks }),
 
@@ -481,6 +494,22 @@ export const usePlayerStore = create<PlayerState>()(
 
       setBatterySaverEnabled: (enabled) => set({ batterySaverEnabled: enabled }),
 
+      setVocalRange: (lowMidi, highMidi) => {
+        if (lowMidi > highMidi) [lowMidi, highMidi] = [highMidi, lowMidi];
+        set({
+          vocalRangeLowMidi: lowMidi,
+          vocalRangeHighMidi: highMidi,
+          vocalRangeMeasuredAt: Date.now(),
+        });
+      },
+
+      clearVocalRange: () =>
+        set({
+          vocalRangeLowMidi: null,
+          vocalRangeHighMidi: null,
+          vocalRangeMeasuredAt: null,
+        }),
+
       createPlaylist: (name) => {
         const id = `playlist_${Date.now()}`;
         set((s) => ({
@@ -579,6 +608,9 @@ export const usePlayerStore = create<PlayerState>()(
         recentlyPlayedLimit: s.recentlyPlayedLimit,
         themeMode: s.themeMode,
         batterySaverEnabled: s.batterySaverEnabled,
+        vocalRangeLowMidi: s.vocalRangeLowMidi,
+        vocalRangeHighMidi: s.vocalRangeHighMidi,
+        vocalRangeMeasuredAt: s.vocalRangeMeasuredAt,
       }),
       // 구버전 데이터 마이그레이션 (trackIds → tracks)
       migrate: (persistedState: any, version: number) => {
