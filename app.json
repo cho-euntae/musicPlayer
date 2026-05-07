@@ -13,7 +13,8 @@
       "infoPlist": {
         "UIBackgroundModes": [
           "audio"
-        ]
+        ],
+        "NSMicrophoneUsageDescription": "보컬 트레이너에서 마이크 입력을 분석합니다."
       }
     },
     "android": {
@@ -69,7 +70,13 @@
         }
       ],
       "expo-web-browser",
-      "./plugins/with-kotlin-jvm-target"
+      "./plugins/with-kotlin-jvm-target",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "보컬 트레이너에서 마이크 입력을 분석합니다."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
