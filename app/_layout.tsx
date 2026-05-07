@@ -58,6 +58,9 @@ export default function RootLayout() {
             <Stack.Screen name="queue" />
             <Stack.Screen name="playlist/[id]" />
             <Stack.Screen name="settings" />
+            <Stack.Screen name="trainer/mic-test" />
+            <Stack.Screen name="trainer/range-test" />
+            <Stack.Screen name="trainer/scale-practice" />
           </Stack>
         </AudioPlayerProvider>
       </BottomSheetModalProvider>

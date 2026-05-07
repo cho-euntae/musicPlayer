@@ -49,6 +49,15 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="trainer"
+        options={{
+          title: 'Trainer',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="mic-circle" size={size} color={color} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }
