@@ -57,7 +57,7 @@ export default function TrainerScreen() {
           iconColor="#1DB954"
           title="1. 마이크 테스트"
           description="입력이 정상인지 확인합니다. 다음 단계의 전제조건."
-          onPress={() => router.push('/trainer/mic-test' as never)}
+          onPress={() => router.push('/trainer/mic-test')}
         />
         <TrainerCard
           icon="trending-up"
@@ -65,7 +65,7 @@ export default function TrainerScreen() {
           title="2. 음역대 측정"
           description="기준음을 듣고 따라 불러 본인의 최저/최고 음을 찾습니다."
           meta={`현재 저장된 음역: ${rangeLabel}`}
-          onPress={() => router.push('/trainer/range-test' as never)}
+          onPress={() => router.push('/trainer/range-test')}
         />
         <TrainerCard
           icon="musical-notes"
@@ -77,7 +77,7 @@ export default function TrainerScreen() {
               ? '측정된 음역 기준으로 추천 키 표시'
               : '먼저 음역대 측정을 권장합니다'
           }
-          onPress={() => router.push('/trainer/scale-practice' as never)}
+          onPress={() => router.push('/trainer/scale-practice')}
         />
       </ScrollView>
     </SafeAreaView>

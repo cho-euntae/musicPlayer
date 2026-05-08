@@ -6,7 +6,7 @@ import { router } from 'expo-router';
 import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { usePlayerStore } from '@/store/player-store';
 import { TRAINER_MAX_MIDI, TRAINER_MIN_MIDI, midiToNote } from '@/lib/trainer/notes';
-import { ensureSineWavFile } from '@/lib/trainer/sine-wav';
+import { ensureSineWavFileForMidi } from '@/lib/trainer/sine-wav';
 import { useTrainerSession } from '@/hooks/use-trainer-session';
 
 // 측정 흐름:
@@ -54,12 +54,11 @@ export default function RangeTestScreen() {
   const playReference = async (midi: number) => {
     try {
       setIsPlayingTone(true);
-      const freq = midiToNote(midi).frequency;
-      const uri = await ensureSineWavFile(freq, REFERENCE_DURATION_MS);
+      const uri = await ensureSineWavFileForMidi(midi, REFERENCE_DURATION_MS);
 
       // 이전 player가 있으면 정리하고 새로 만든다 — uri마다 별도 인스턴스가 안전.
       try {
-        playerRef.current?.remove();
+        await Promise.resolve(playerRef.current?.remove());
       } catch {
         // ignore
       }
@@ -84,16 +83,22 @@ export default function RangeTestScreen() {
     await playReference(START_MIDI);
   };
 
+  // measuringLow phase에 진입할 때는 항상 highCandidate가 결정된 상태여야 한다.
+  // 한 곳에서만 전환하도록 헬퍼로 묶어 invariant를 강제한다.
+  const enterMeasuringLow = async (high: number): Promise<void> => {
+    setHighCandidate(high);
+    setPhase('measuringLow');
+    setCurrentMidi(START_MIDI - 1);
+    await playReference(START_MIDI - 1);
+  };
+
   const handleCanReach = async () => {
     if (phase === 'measuringHigh') {
       // 한 반음 위로
       const next = currentMidi + 1;
       if (next > TRAINER_MAX_MIDI) {
         // 측정 한계 도달 — 그대로 high 확정
-        setHighCandidate(currentMidi);
-        setPhase('measuringLow');
-        setCurrentMidi(START_MIDI - 1);
-        await playReference(START_MIDI - 1);
+        await enterMeasuringLow(currentMidi);
         return;
       }
       setCurrentMidi(next);
@@ -102,7 +107,13 @@ export default function RangeTestScreen() {
       // 한 반음 아래로
       const next = currentMidi - 1;
       if (next < TRAINER_MIN_MIDI) {
-        finalize(currentMidi, highCandidate ?? START_MIDI);
+        if (highCandidate == null) {
+          // 정상 흐름에선 닿을 수 없는 분기. 안전망으로 측정 초기화.
+          console.warn('[range-test] highCandidate missing in measuringLow');
+          setPhase('idle');
+          return;
+        }
+        finalize(currentMidi, highCandidate);
         return;
       }
       setCurrentMidi(next);
@@ -112,21 +123,19 @@ export default function RangeTestScreen() {
 
   const handleCannotReach = async () => {
     if (phase === 'measuringHigh') {
-      // 직전 음이 높이의 한계.
-      const high = currentMidi - 1;
-      if (high < START_MIDI) {
-        // 시작점도 못 내면 시작점을 일단 high로 인정
-        setHighCandidate(START_MIDI);
-      } else {
-        setHighCandidate(high);
-      }
-      setPhase('measuringLow');
-      setCurrentMidi(START_MIDI - 1);
-      await playReference(START_MIDI - 1);
+      // 직전 음이 높이의 한계. 시작점도 못 내면 시작점을 high로 인정.
+      const high = currentMidi - 1 < START_MIDI ? START_MIDI : currentMidi - 1;
+      await enterMeasuringLow(high);
     } else if (phase === 'measuringLow') {
+      if (highCandidate == null) {
+        // 정상 흐름에선 닿을 수 없는 분기. 안전망으로 측정 초기화.
+        console.warn('[range-test] highCandidate missing in measuringLow');
+        setPhase('idle');
+        return;
+      }
       // 직전 음이 낮음의 한계.
       const low = currentMidi + 1;
-      finalize(low, highCandidate ?? START_MIDI);
+      finalize(low, highCandidate);
     }
   };
 

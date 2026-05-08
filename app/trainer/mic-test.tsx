@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,10 +7,9 @@ import {
   useAudioRecorder,
   useAudioRecorderState,
   RecordingPresets,
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync,
 } from 'expo-audio';
 import { useTrainerSession } from '@/hooks/use-trainer-session';
+import { useTrainerMicSession } from '@/hooks/use-trainer-mic-session';
 
 // metering 값(dBFS)을 0..1 범위로 정규화. -60dB을 무음에 가까운 바닥,
 // -10dB을 강한 입력으로 본다.
@@ -22,43 +21,18 @@ function normalizeMeter(meteringDb: number | undefined): number {
   return (clamped - min) / (max - min);
 }
 
+// metering 폴링 간격(ms).
+//  - 50ms는 초당 20회 setState라 부모 트리 리렌더 부담 + 배터리 소모가 큼.
+//  - 100ms로 두어도 사용자가 시각적 지연을 거의 못 느끼고 (감지 한계 ~100ms),
+//    CPU/배터리 영향이 절반으로 줄어든다.
+const METERING_POLL_MS = 100;
+
 export default function MicTestScreen() {
   useTrainerSession();
 
-  const [permissionGranted, setPermissionGranted] = useState<boolean | null>(null);
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  // 50ms 간격으로 metering 폴링 — 시각적 부드러움과 부담의 절충.
-  const recorderState = useAudioRecorderState(recorder, 50);
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        const { granted } = await requestRecordingPermissionsAsync();
-        setPermissionGranted(granted);
-        if (granted) {
-          // iOS에서 마이크 입력을 허용하려면 카테고리를 playAndRecord로 전환해야 함.
-          // Android는 무시되지만 호출해도 안전.
-          await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-        }
-      } catch (error) {
-        console.warn('[mic-test] permission/audio mode error', error);
-        setPermissionGranted(false);
-      }
-    })();
-
-    return () => {
-      // 화면을 벗어날 때는 녹음 세션을 깔끔히 종료. 자동 재개는 안 함.
-      void (async () => {
-        try {
-          if (recorder.isRecording) await recorder.stop();
-          await setAudioModeAsync({ allowsRecording: false });
-        } catch {
-          // 이미 정지/해제된 경우 무시
-        }
-      })();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const recorderState = useAudioRecorderState(recorder, METERING_POLL_MS);
+  const { permissionGranted } = useTrainerMicSession(recorder);
 
   const handleStart = async () => {
     if (!permissionGranted) {

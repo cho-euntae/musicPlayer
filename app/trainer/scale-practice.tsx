@@ -5,8 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { usePlayerStore } from '@/store/player-store';
-import { midiToNote, vocalizeScaleUpDown } from '@/lib/trainer/notes';
-import { ensureSineWavFile } from '@/lib/trainer/sine-wav';
+import { midiToNote, noteNameKoBase, vocalizeScaleUpDown } from '@/lib/trainer/notes';
+import { ensureSineWavFileForMidi } from '@/lib/trainer/sine-wav';
 import { useTrainerSession } from '@/hooks/use-trainer-session';
 
 // 스케일 연습 화면.
@@ -35,14 +35,20 @@ export default function ScalePracticeScreen() {
     return 60;
   }, [lowMidi, highMidi]);
 
+  // suggestedRoot가 처음으로 유효하게 바뀐 시점에만 rootMidi에 반영한다.
+  // (사용자가 ±버튼으로 수동 조정한 값을 store 변경이 덮어쓰지 않도록 가드.)
   const [rootMidi, setRootMidi] = useState<number>(suggestedRoot);
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
   const playerRef = useRef<AudioPlayer | null>(null);
   const cancelledRef = useRef(false);
+  const userTouchedRootRef = useRef(false);
 
-  useEffect(() => setRootMidi(suggestedRoot), [suggestedRoot]);
+  useEffect(() => {
+    if (userTouchedRootRef.current) return;
+    setRootMidi(suggestedRoot);
+  }, [suggestedRoot]);
 
   useEffect(() => {
     return () => {
@@ -63,16 +69,39 @@ export default function ScalePracticeScreen() {
   const isOutOfRange =
     lowMidi != null && highMidi != null && (rootMidi < lowMidi || topNote.midi > highMidi);
 
-  const playOne = async (midi: number) => {
-    const freq = midiToNote(midi).frequency;
-    const uri = await ensureSineWavFile(freq, NOTE_DURATION_MS);
-    try {
-      playerRef.current?.remove();
-    } catch {
-      // ignore
+  // 9음을 한 인스턴스로 재사용하기 위해, 음마다 새 player를 만드는 대신
+  // replace(uri)로 source만 바꿔 끼운다. expo-audio의 AudioPlayer가 replace를
+  // 노출하지 않는 버전이 있을 수 있어 안전하게 fallback으로 await remove()도 둔다.
+  const swapPlayerSource = async (uri: string): Promise<AudioPlayer> => {
+    const existing = playerRef.current;
+    if (existing) {
+      // expo-audio AudioPlayer.replace는 SDK에 따라 메서드명이 다를 수 있어 동적 호출.
+      const replace = (existing as unknown as { replace?: (src: string) => void }).replace;
+      if (typeof replace === 'function') {
+        try {
+          replace.call(existing, uri);
+          return existing;
+        } catch {
+          // 실패 시 아래 재생성 경로로 fall through.
+        }
+      }
+      try {
+        await Promise.resolve(existing.remove());
+      } catch {
+        // ignore
+      }
+      playerRef.current = null;
     }
     const player = createAudioPlayer(uri);
     playerRef.current = player;
+    return player;
+  };
+
+  const playOne = async (midi: number): Promise<void> => {
+    const uri = await ensureSineWavFileForMidi(midi, NOTE_DURATION_MS);
+    if (cancelledRef.current) return;
+    const player = await swapPlayerSource(uri);
+    if (cancelledRef.current) return;
     player.play();
   };
 
@@ -85,6 +114,7 @@ export default function ScalePracticeScreen() {
         if (cancelledRef.current) break;
         setActiveIdx(i);
         await playOne(scale[i].midi);
+        if (cancelledRef.current) break;
         await new Promise((resolve) => setTimeout(resolve, NOTE_DURATION_MS + NOTE_GAP_MS));
       }
     } catch (error) {
@@ -109,6 +139,7 @@ export default function ScalePracticeScreen() {
 
   const adjustRoot = (delta: number) => {
     if (isPlaying) return;
+    userTouchedRootRef.current = true;
     setRootMidi((prev) => Math.max(36, Math.min(72, prev + delta)));
   };
 
@@ -168,7 +199,7 @@ export default function ScalePracticeScreen() {
                   activeIdx === idx && styles.scaleNoteTextActive,
                 ]}
               >
-                {n.nameKo.replace(/\d$/, '')}
+                {noteNameKoBase(n)}
               </Text>
             </View>
           ))}

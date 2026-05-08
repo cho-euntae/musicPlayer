@@ -135,12 +135,20 @@ trainer/
 
 ## 6. 격리 정책 정리
 
-| 트리거 | 동작 |
-|---|---|
-| Trainer 인덱스 진입 | `TrackPlayer.pause()` |
-| 하위 화면 진입 (mic/range/scale) | `TrackPlayer.pause()` (재차) + 필요시 mic 권한 + audio mode 전환 |
-| Trainer 화면 이탈 | 자동 재개 X. 단 `allowsRecording: false`로 mode 원복 (mic-test만) |
-| Trainer 안에서 재생되는 reference tone | `expo-audio`의 별도 `AudioPlayer` 인스턴스 — TrackPlayer 큐와 분리 |
+| 트리거 | 동작 | 구현 위치 |
+|---|---|---|
+| Trainer 인덱스 진입 | `TrackPlayer.pause()` | `(tabs)/trainer.tsx` → `useTrainerSession()` |
+| 하위 화면 진입 (mic/range/scale) | `TrackPlayer.pause()` 재차 (방어적, no-op이면 그대로 통과) + 필요 시 mic 권한 요청 + audio mode 전환 | 각 화면 → `useTrainerSession()`, mic 화면은 추가로 `useTrainerMicSession(recorder)` |
+| Trainer 화면 이탈 | 자동 재개 X. mic 사용 화면은 `recorder.stop()` 후 `allowsRecording: false`로 mode 원복 | `useTrainerMicSession` cleanup |
+| Trainer 안에서 재생되는 reference tone | `expo-audio`의 별도 `AudioPlayer` 인스턴스 — TrackPlayer 큐와 분리 | `lib/trainer/sine-wav.ts` + 각 화면 |
+
+> **중복 호출에 대한 메모**: 하위 화면에서도 `useTrainerSession()`을 다시 호출하는 것은
+> 의도된 방어 패턴이다. 인덱스를 거치지 않고 (예: 딥링크) 진입했을 때도 일시정지가 보장되어야
+> 하므로 redundant but safe 정책으로 유지한다.
+
+> **mic 권한/오디오 모드 책임 분리**: mic 권한 요청과 `setAudioModeAsync` 전환은
+> `hooks/use-trainer-mic-session.ts`에 모여 있다. 추가로 마이크가 필요한 화면이 생겨도
+> 이 훅 하나만 호출하면 되며, 화면 컴포넌트에서 권한/모드 코드를 다시 작성하지 않는다.
 
 ---
 

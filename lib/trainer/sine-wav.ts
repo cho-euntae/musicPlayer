@@ -1,4 +1,5 @@
 import * as FileSystem from 'expo-file-system/legacy';
+import { A4_FREQ, A4_MIDI } from './notes';
 
 // 16-bit PCM mono WAV을 메모리에서 만들어 cache 디렉토리에 쓰고 file:// URI를 돌려준다.
 //
@@ -95,34 +96,83 @@ function bytesToBase64(bytes: Uint8Array): string {
   return result;
 }
 
-// 같은 주파수/길이 조합은 캐시 재사용해서 매번 디스크 쓰기를 피한다.
+// 같은 음/길이 조합은 캐시 재사용해서 매번 디스크 쓰기를 피한다.
+//
+// 캐시 키 설계:
+//  - 과거에는 `Math.round(frequencyHz * 100)` 기반이라 부동소수점 오차로 같은
+//    음이 다른 키가 될 수 있었다. 이제는 MIDI 정수 번호를 1차 키로 쓴다.
+//  - frequency 그대로 받는 호환 호출은 가장 가까운 MIDI로 양자화한다.
+//
+// LRU 제한:
+//  - 측정/연습을 반복하면 wav 메타가 메모리에 누적되므로 50개로 제한한다.
+//  - 디스크 파일 자체는 OS의 cache cleanup에 맡긴다 (재계산 가능한 자산).
+const MEMO_CAPACITY = 50;
 const memoUriByKey = new Map<string, string>();
 
-export async function ensureSineWavFile(frequencyHz: number, durationMs: number): Promise<string> {
-  // 주파수는 0.01Hz까지 충분히 구분되며 길이는 ms 단위로 충분.
-  const key = `sine_${Math.round(frequencyHz * 100)}_${Math.round(durationMs)}`;
-  const cached = memoUriByKey.get(key);
-  if (cached) return cached;
+function rememberMemo(key: string, uri: string): void {
+  // Map은 삽입 순서를 유지하므로, 재참조 시 delete→set으로 LRU 갱신.
+  if (memoUriByKey.has(key)) memoUriByKey.delete(key);
+  memoUriByKey.set(key, uri);
+  while (memoUriByKey.size > MEMO_CAPACITY) {
+    const oldest = memoUriByKey.keys().next().value;
+    if (oldest === undefined) break;
+    memoUriByKey.delete(oldest);
+  }
+}
 
+function getMemo(key: string): string | undefined {
+  const uri = memoUriByKey.get(key);
+  if (uri !== undefined) {
+    // 재사용 시 LRU 갱신.
+    memoUriByKey.delete(key);
+    memoUriByKey.set(key, uri);
+  }
+  return uri;
+}
+
+function nearestMidi(frequencyHz: number): number {
+  if (frequencyHz <= 0) return A4_MIDI;
+  return Math.round(A4_MIDI + 12 * Math.log2(frequencyHz / A4_FREQ));
+}
+
+async function buildAndWriteFile(uri: string, frequencyHz: number, durationMs: number): Promise<void> {
+  const fileInfo = await FileSystem.getInfoAsync(uri);
+  if (fileInfo.exists) return;
+  const bytes = buildSineWavBuffer({ frequency: frequencyHz, durationMs });
+  const base64 = bytesToBase64(bytes);
+  await FileSystem.writeAsStringAsync(uri, base64, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+}
+
+async function ensureCacheDir(): Promise<string> {
   const cacheDir = FileSystem.cacheDirectory;
   if (!cacheDir) throw new Error('cacheDirectory 사용 불가');
-  const uri = `${cacheDir}trainer/${key}.wav`;
   const dir = `${cacheDir}trainer`;
-
   const dirInfo = await FileSystem.getInfoAsync(dir);
   if (!dirInfo.exists) {
     await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
   }
+  return dir;
+}
 
-  const fileInfo = await FileSystem.getInfoAsync(uri);
-  if (!fileInfo.exists) {
-    const bytes = buildSineWavBuffer({ frequency: frequencyHz, durationMs });
-    const base64 = bytesToBase64(bytes);
-    await FileSystem.writeAsStringAsync(uri, base64, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-  }
+// MIDI 번호로 직접 wav 파일을 보장한다. 기본 권장 진입점.
+export async function ensureSineWavFileForMidi(midi: number, durationMs: number): Promise<string> {
+  const key = `sine_midi_${Math.round(midi)}_${Math.round(durationMs)}`;
+  const cached = getMemo(key);
+  if (cached) return cached;
 
-  memoUriByKey.set(key, uri);
+  const dir = await ensureCacheDir();
+  const uri = `${dir}/${key}.wav`;
+  // MIDI → Hz 변환은 buildSineWavBuffer 내부에서 정확한 평균율로 합성해야 하므로
+  // 여기서 한 번만 수행한다.
+  const frequencyHz = A4_FREQ * Math.pow(2, (midi - A4_MIDI) / 12);
+  await buildAndWriteFile(uri, frequencyHz, durationMs);
+  rememberMemo(key, uri);
   return uri;
+}
+
+// 주파수 기반 호환 진입점. 내부적으로 가장 가까운 MIDI로 양자화해 캐시 일관성을 유지한다.
+export async function ensureSineWavFile(frequencyHz: number, durationMs: number): Promise<string> {
+  return ensureSineWavFileForMidi(nearestMidi(frequencyHz), durationMs);
 }

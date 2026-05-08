@@ -42,10 +42,20 @@ export function midiToNote(midi: number): Note {
 }
 
 // C 메이저 한 옥타브: 도-레-미-파-솔-라-시-도 (8음)
+// 향후 다양한 워밍업 패턴(예: 3화음 분산, 5도 도약) 추가 시 같은 형태로 함수 추가.
+// 현재 직접 호출처는 없지만 P3 패치에서 사용 예정이라 export 유지.
 export function cMajorScale(rootMidi: number): Note[] {
   // 다이아토닉 인터벌(반음 단위): 0,2,4,5,7,9,11,12
   const intervals = [0, 2, 4, 5, 7, 9, 11, 12];
   return intervals.map((semitones) => midiToNote(rootMidi + semitones));
+}
+
+// 음이름의 옥타브 숫자를 떼어 음절만 반환 ("도4" → "도", "도#4" → "도#").
+// UI에서 옥타브 정보를 빼고 보여주고 싶을 때 정규식 대신 사용.
+export function noteNameKoBase(note: Note): string {
+  // NOTE_NAMES_KO를 직접 참조하지 않고 nameKo에서 순수한 한글/# 부분만 추출.
+  // 옥타브가 한 자리 정수라는 가정에 의존하지 않도록 trailing digits 전부 제거.
+  return note.nameKo.replace(/\d+$/, '');
 }
 
 // 도-레-미-파-솔-파-미-레-도 (보컬 워밍업의 정석. 9음)
