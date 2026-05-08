@@ -15,7 +15,8 @@
           "audio"
         ],
         "NSMicrophoneUsageDescription": "보컬 트레이너에서 마이크 입력을 분석합니다."
-      }
+      },
+      "bundleIdentifier": "com.anonymous.musicplayer"
     },
     "android": {
       "adaptiveIcon": {
