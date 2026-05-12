@@ -116,6 +116,17 @@ trainer/
 - 현재 재생 중인 음을 카드로 강조 표시
 - 음역대 밖이면 경고 텍스트 표시
 
+#### 녹음하며 듣기 (MVP)
+
+- 토글 ON 시 9음 재생 시작과 함께 마이크 녹음 시작 → 재생 끝나면 자동 정지 → `recorder.uri`를
+  `createAudioPlayer`로 한 번 리플레이해 본인 발성을 같이 들을 수 있다.
+- 녹음 길이 ≈ 9 × 800ms = 7.2초. 리플레이 윈도우는 +600ms 여유.
+- 토글이 켜지면 헤드셋 권장 배너가 노출됨 — 외부 스피커로 reference tone이 마이크에 같이 잡혀
+  비교 음질이 흐려지기 때문.
+- 화면 unmount 또는 사용자가 정지를 누르면 `cleanupRecording()`이 임시 wav 파일을 즉시
+  삭제 (app.json 권한 텍스트의 약속과 일치).
+- pitch 매칭 시각화는 P1(실시간 pitch detection)에 결합 예정.
+
 ---
 
 ## 5. 설치된 의존성
@@ -138,9 +149,10 @@ trainer/
 | 트리거 | 동작 | 구현 위치 |
 |---|---|---|
 | Trainer 인덱스 진입 | `TrackPlayer.pause()` | `(tabs)/trainer.tsx` → `useTrainerSession()` |
-| 하위 화면 진입 (mic/range/scale) | `TrackPlayer.pause()` 재차 (방어적, no-op이면 그대로 통과) + 필요 시 mic 권한 요청 + audio mode 전환 | 각 화면 → `useTrainerSession()`, mic 화면은 추가로 `useTrainerMicSession(recorder)` |
-| Trainer 화면 이탈 | 자동 재개 X. mic 사용 화면은 `recorder.stop()` 후 `allowsRecording: false`로 mode 원복 | `useTrainerMicSession` cleanup |
-| Trainer 안에서 재생되는 reference tone | `expo-audio`의 별도 `AudioPlayer` 인스턴스 — TrackPlayer 큐와 분리 | `lib/trainer/sine-wav.ts` + 각 화면 |
+| 하위 화면 진입 (mic/range/scale) | `TrackPlayer.pause()` 재차 (방어적, no-op이면 그대로 통과) + 필요 시 mic 권한 요청 + audio mode 전환 | 각 화면 → `useTrainerSession()`, mic을 사용하는 화면은 추가로 `useTrainerMicSession(recorder)` (mic-test, scale-practice) |
+| Trainer 화면 이탈 | 자동 재개 X. mic 사용 화면은 `recorder.stop()` + 임시 녹음 파일 즉시 삭제 + `allowsRecording: false`로 mode 원복 | `useTrainerMicSession` cleanup → 내부에서 `cleanupRecording()` 호출 |
+| 사용자가 정지/리플레이 종료 | 진행 중이던 녹음 임시 파일 즉시 삭제 | `cleanupRecording()` (`useTrainerMicSession` 반환값) |
+| Trainer 안에서 재생되는 reference tone / 리플레이 | `expo-audio`의 별도 `AudioPlayer` 인스턴스 — TrackPlayer 큐와 분리 | `lib/trainer/sine-wav.ts` + 각 화면 |
 
 > **중복 호출에 대한 메모**: 하위 화면에서도 `useTrainerSession()`을 다시 호출하는 것은
 > 의도된 방어 패턴이다. 인덱스를 거치지 않고 (예: 딥링크) 진입했을 때도 일시정지가 보장되어야

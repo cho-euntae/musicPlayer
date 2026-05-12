@@ -1,105 +1,119 @@
 # 보컬 트레이너 코드 리뷰 보고서
 
 - 작성일: 2026-05-08
-- 대상: `feat(trainer)` 커밋군 (`fd333f4` ~ `89149ba`)
-- 리뷰어 (병렬 점검): TypeScript 리뷰어 / 코드 아키텍트 / 성능 최적화
+- 대상: `feat(trainer)` 커밋군 (`fd333f4` ~ `89149ba`) + 후속 수정
+- 리뷰어: TypeScript / 코드 아키텍트 / 성능 최적화 (1차) → 보안 리뷰 (2차, 수정본 기준)
+- 검증: `tsc --noEmit` 트레이너 영역 0 에러, `eslint` exit 0, `jest` 27 tests passed
 
 ---
 
-## 점검 범위
+## 1차 리뷰 (TypeScript / 아키텍트 / 성능) — 적용 완료
 
-| 분류 | 파일 |
-|---|---|
-| 라우팅 | `app/(tabs)/_layout.tsx`, `app/(tabs)/trainer.tsx`, `app/_layout.tsx` |
-| 화면 | `app/trainer/mic-test.tsx`, `app/trainer/range-test.tsx`, `app/trainer/scale-practice.tsx` |
-| 훅 | `hooks/use-trainer-session.ts` |
-| 도메인 | `lib/trainer/notes.ts`, `lib/trainer/sine-wav.ts` |
-| 상태 | `store/player-store.ts` (vocalRange 필드 추가) |
-| 설정 | `app.json`, `package.json` |
+### P0 (적용)
+- `lib/trainer/sine-wav.ts` — 캐시 키 MIDI 정수 기반 + LRU 50, `ensureSineWavFileForMidi` 신설, 주파수 진입점은 nearestMidi로 양자화
+- `app/trainer/scale-practice.tsx` — 단일 AudioPlayer + `replace(uri)` (없으면 `await remove()` fallback)로 race 제거, 정규식 → `noteNameKoBase()` 헬퍼, 사용자 수동 키 보존
+- `app/trainer/mic-test.tsx` — metering 폴링 50→100ms (상수 `METERING_POLL_MS`)
 
----
+### P1 (적용)
+- `app/trainer/range-test.tsx` — `enterMeasuringLow(high)` 헬퍼로 phase 전이 단일화, `highCandidate` null fallback 제거 + 안전망
+- `hooks/use-trainer-session.ts` — `useUnmount` cleanup을 ref로 잡아 deps `[]` 고정
+- `hooks/use-trainer-mic-session.ts` 신규 — 권한+`setAudioModeAsync` 책임 분리, `recorderRef`로 cleanup 안전성 확보
+- `app/trainer/mic-test.tsx` — eslint-disable 제거, 새 훅 호출로 단순화
+- `VOCAL_TRAINER.md §6` — 격리 정책 표 갱신, 하위 화면 중복 호출이 의도된 방어 패턴임을 명시
 
-## 종합 우선순위 (3개 리뷰 합본)
-
-### 🔴 P0 — 즉시 수정 권장
-
-1. **`lib/trainer/sine-wav.ts` — 메모이즈 캐시 무한 증가 (성능 + TS)**
-   - `memoUriByKey` Map에 LRU/최대치 없음 → 측정 반복 시 누적
-   - 또한 키가 `Math.round(frequencyHz * 100)` 기반이라 부동소수점 오차로 같은 음이 다른 키가 될 수 있음
-   - **수정안**: 최대 50개 LRU + 키를 MIDI 번호 기반으로 변경 (`sine_${midi}_${durationMs}`)
-
-2. **`app/trainer/scale-practice.tsx:88` — 9음 연속 재생 시 AudioPlayer 인스턴스 정리 race**
-   - 매 루프마다 `createAudioPlayer` 새로 만들고 이전 것 제거하는데, 비동기 `remove()` 미완료 상태에서 다음 인스턴스 생성 → JNI 참조 누적 가능
-   - **수정안**: `await playerRef.current?.remove()`로 직렬화, 또는 단일 인스턴스 재사용 + `replace(uri)` 패턴
-
-3. **`app/trainer/mic-test.tsx:31` — `useAudioRecorderState(recorder, 50)` 50ms 폴링**
-   - 초당 20회 setState → 부모 트리 리렌더, 배터리 소비 큼
-   - **수정안**: 100ms로 상향 (육안 감지 한계). 배터리 ~5% 절감 기대
-
-### 🟡 P1 — 가급적 이번 스프린트 안에 정리
-
-4. **`app/trainer/range-test.tsx:105` — `highCandidate` null 처리가 fallback으로 가려짐**
-   - `finalize(currentMidi, highCandidate ?? START_MIDI)` 형태라 논리 오류가 런타임에 잡히지 않음
-   - **수정안**: 호출 시점에 NonNullable 보장하는 가드, 또는 `setVocalRange`의 swap 의존성 제거
-
-5. **`hooks/use-trainer-session.ts` cleanup 의존성**
-   - cleanup이 deps에 들어가면 매 렌더마다 재생성 → 의도치 않은 cleanup 실행
-   - **수정안**: cleanup을 `useCallback([], …)`으로 안정화 또는 deps `[]` 고정
-
-6. **격리 정책 문서(§6) vs 실제 코드 불일치 (아키텍트)**
-   - VOCAL_TRAINER.md §6은 인덱스 진입 시에만 `TrackPlayer.pause()`로 기술
-   - 실제 코드는 인덱스(`trainer.tsx:37`)와 하위 3개 화면 모두에서 `useTrainerSession()` 호출 (defensive)
-   - **수정안**: 문서를 "하위 화면 진입 시에도 호출 (redundant but safe)"로 갱신, 또는 코드에서 중복 제거 결정
-
-7. **`app/trainer/mic-test.tsx:60` — `eslint-disable-next-line` 의존성 우회**
-   - cleanup이 `recorder.isRecording`을 참조하지만 deps에서 제외
-   - **수정안**: `recorderRef`로 안정화하여 명시적 의존성으로 정리
-
-8. **권한 / audio mode 로직 위치 (아키텍트)**
-   - 현재 `mic-test.tsx`에만 권한+모드 전환 로직이 있음 → 향후 화면 추가 시 분산 위험
-   - **수정안**: `useTrainerMicSession()` 훅으로 추출 또는 `useTrainerSession`에 옵션 통합
-
-### 🟢 P2 — 마이너 / Nit
-
-9. **`app/(tabs)/trainer.tsx` — `router.push('/trainer/...' as never)` 패턴**
-   - app.json에 `typedRoutes: true`인데도 `as never`로 우회. 제거하면 자동 타입 검증 회복
-10. **`lib/trainer/notes.ts:46-48` — `cMajorScale` 미사용 export**
-    - 향후 사용이면 `// TODO: 다양한 스케일 패턴` 주석, 아니면 제거
-11. **`app/trainer/scale-practice.tsx:171` — `n.nameKo.replace(/\d$/, '')`**
-    - `도4` 형식 가정 → 정규식 의존성. `notes.ts`에 `noteNameKoBase()` 같은 헬퍼 추가가 안전
-12. **`store/player-store.ts:497-504` — `setVocalRange` swap 처리**
-    - 방어로직은 정확하지만, 호출처에서 low/high 순서 보장 강화하면 swap 자체가 불필요
-13. **`useMemo(suggestedRoot)` + `useEffect(setRootMidi, [suggestedRoot])` (scale-practice)**
-    - 이중 동기화. state 초기화 로직으로 통합 가능
-14. **partialize에 trainer 필드 포함 (아키텍트 의견)**
-    - 현재 OK. P2 "진행 기록"으로 확장될 때 별도 `trainer-store` 분리 검토
+### P2 (적용)
+- `lib/trainer/notes.ts` — `noteNameKoBase()` 헬퍼 추가, `cMajorScale` 사용 의도 주석
+- `app/(tabs)/trainer.tsx` — `as never` 3곳 제거 (typedRoutes 정상 동작 확인)
 
 ---
 
-## 잘된 점 (3 리뷰 공통 인정)
+## 2차 보안 리뷰 (수정본 기준) — 후속 조치 필요
 
-- **모듈 경계** — `lib/trainer/*`가 화면 의존 0의 순수 도메인 유틸. 테스트 작성 쉽고 재사용성 높음
-- **재생 시스템 격리** — TrackPlayer(`playback`)와 expo-audio(`playAndRecord`) 인스턴스가 완전히 분리. AVAudioSession 충돌 사전 차단
-- **세션 권한 원복** — mic-test cleanup에서 `allowsRecording: false` 호출 → iOS 세션 누수 방지
-- **WAV 합성 구현** — RIFF 헤더, ADSR fade(20ms), 16-bit PCM mono 모두 정확. 학습용으로 충분
-- **MIDI ↔ Hz 변환** — 음악 이론 정확. cent 계산 로직도 추후 pitch 매칭 확장 시 그대로 사용 가능
-- **store 마이그레이션** — `partialize` + 버전 관리 체계적, 신규 vocalRange 필드도 정확히 등록
+### 🔴 즉시 조치 필요
+
+1. **`app.json` mic 권한 텍스트 명확화**
+   - 현재: "보컬 트레이너에서 마이크 입력을 분석합니다."
+   - 사용자가 실제 데이터 처리 방식을 알 수 없음 → 권한 수락/거부 판단 정보 부족
+   - **수정안**: 예) "음정 측정을 위해 마이크 입력을 실시간으로 분석합니다. 녹음 파일은 저장되지 않습니다." (실제 동작과 일치하도록 작성)
+
+2. **Android 권한 오버그랜트 검토**
+   - `READ_EXTERNAL_STORAGE` / `WRITE_EXTERNAL_STORAGE` / `READ_MEDIA_IMAGES` / `READ_MEDIA_VIDEO` 등이 트레이너 기능과 무관
+   - 다만 음악 라이브러리(`expo-media-library`)가 요구하는 권한이라 이번 스프린트에서 제거하면 기존 기능 깨짐
+   - **권고**: 트레이너만의 이슈는 아니지만, `READ_MEDIA_AUDIO`만 남기고 나머지는 SDK 33+ 대응으로 단계적 정리 (별도 스프린트)
+
+3. **mic-test 녹음 파일 디스크 저장 여부 확인**
+   - `RecordingPresets.HIGH_QUALITY`로 `prepareToRecordAsync()` 호출 시 임시 wav가 디스크에 생성될 수 있음
+   - cleanup에서 `recorder.stop()`은 하지만 생성된 파일 삭제 명시 없음
+   - **수정안**: `recorder.uri` 확인 후 `FileSystem.deleteAsync(uri, { idempotent: true })`로 명시적 삭제
+
+### 🟡 권장 조치
+- `useTrainerMicSession` cleanup의 비동기 직렬화 — 현재 `void async IIFE`라 다음 화면 진입과 race 가능. 다만 동일 모듈을 거치니 큰 문제 아님
+- `vocalRange` 평문 저장은 비민감(MIDI 정수)이므로 OK. 향후 pitch 기록/녹음 메타 추가 시 암호화 필요
+
+### 👍 잘된 점
+- WAV 캐시가 앱 전용 `cacheDirectory`에 한정 — 타 앱 접근 불가
+- `NSMicrophoneUsageDescription`과 expo-audio plugin 텍스트가 일치
+- 화면 이탈 시 `allowsRecording: false` 원복으로 AVAudioSession 누수 차단
+- AsyncStorage 버전 관리 + migrate 함수 체계적
 
 ---
 
-## 권장 조치 체크리스트
+## 3. 단위 테스트 (jest-expo, 신규)
 
-- [ ] sine-wav.ts: LRU 50개 제한 + MIDI 기반 캐시 키
-- [ ] scale-practice.tsx: AudioPlayer 단일 인스턴스 재사용 또는 `await remove()`
-- [ ] mic-test.tsx: 폴링 50ms → 100ms
-- [ ] range-test.tsx: `highCandidate` 가드 강화
-- [ ] use-trainer-session.ts: cleanup deps 고정
-- [ ] VOCAL_TRAINER.md §6 표 갱신 (또는 하위 화면 호출 제거)
-- [ ] 권한/모드 전환 훅 추출 (`useTrainerMicSession`)
-- [ ] `as never` 제거 + `cMajorScale` 처리 결정
+설정: `package.json` → `"test": "jest"`, `"jest": { "preset": "jest-expo", ... }`
+
+| 파일 | 테스트 수 | 검증 항목 |
+|---|---|---|
+| `lib/trainer/__tests__/notes.test.ts` | 21 | MIDI↔Hz 라운드트립, midiToNote, vocalizeScaleUpDown, centsBetween, noteNameKoBase, 트레이너 상수 |
+| `lib/trainer/__tests__/sine-wav.test.ts` | 6 | 메모이즈 hit, 다른 MIDI별 파일 분리, LRU 50 evict, 재참조 시 LRU 갱신, 주파수→MIDI 양자화 일관성 |
+
+실행: `npm test` (또는 `npx jest lib/trainer`).
 
 ---
 
-## 한 줄 종합
+## 4. 빌드 / 실기기 체크리스트 (VOCAL_TRAINER.md §8 후속)
 
-**전반 설계와 격리 정책은 견고. P0 3건(메모이즈 LRU·플레이어 인스턴스 race·폴링 주기)만 정리하면 production 배포 권장 수준.**
+### 정적 검증 — 완료
+- [x] `tsc --noEmit` 클린 (트레이너 영역 0 에러)
+- [x] `expo lint` 클린
+- [x] `npm test` 27/27 통과
+
+### 네이티브 빌드 — 미완료, 사용자 머신에서 진행 필요
+expo-audio가 새로 추가됐으므로 Android는 클린 리빌드 필수.
+
+```bash
+# 옵션 A — 가장 깨끗한 방법 (권장)
+npx expo prebuild --clean
+npm run android   # 또는 npm run ios
+
+# 옵션 B — 기존 prebuild 유지하고 gradle만 클린
+cd android && ./gradlew clean && cd ..
+npm run android
+```
+
+iOS는 Pods 갱신 필요:
+```bash
+cd ios && pod install && cd ..
+npm run ios
+```
+
+### 실기기 동작 확인 — 미완료
+- [ ] 트레이너 탭이 보이고 카드 3개 모두 클릭 가능
+- [ ] 마이크 권한 다이얼로그 → 허용 → 레벨바가 발성에 반응 (회색→녹색→빨강 색 전환)
+- [ ] 음역대 측정: C4 사인파 재생 → "낼 수 있음/못 냄" 응답마다 한 반음 이동
+- [ ] 측정 완료 시 결과 화면에 최저/최고 + 옥타브 수 표시되고 store에 저장
+- [ ] 스케일 연습: 9음(도-레-미-파-솔-파-미-레-도) 순차 재생, 현재 음 카드 강조
+- [ ] ± 버튼으로 키 조정 시 user touched 가드 동작 (store 변경에 안 덮임)
+- [ ] 음악 재생 중 트레이너 진입 시 자동 일시정지, 트레이너 이탈 후에도 자동 재개 X
+- [ ] 헤드셋/Bluetooth 연결 환경에서도 동일 동작
+- [ ] 마이크 화면 이탈 후 다른 화면에서 음악 재생이 정상 (AVAudioSession 원복 확인)
+
+### 보안 리뷰 후속 조치 — 미완료
+- [ ] `app.json` `NSMicrophoneUsageDescription` + expo-audio `microphonePermission` 텍스트를 사용자 친화적으로 갱신
+- [ ] mic-test cleanup에서 임시 녹음 파일 삭제 코드 추가 (`recorder.uri` 활용)
+
+---
+
+## 5. 한 줄 종합
+
+**1차 리뷰 P0/P1/P2 모두 적용 완료, 단위 테스트 27건 통과, 보안 리뷰 후속 3건(mic 권한 텍스트, 권한 오버그랜트 검토, 녹음 파일 정리)만 정리하면 production 배포 권장 수준.**
