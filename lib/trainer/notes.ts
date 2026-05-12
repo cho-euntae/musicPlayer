@@ -70,3 +70,15 @@ export function centsBetween(measuredHz: number, targetHz: number): number {
   if (measuredHz <= 0 || targetHz <= 0) return 0;
   return 1200 * Math.log2(measuredHz / targetHz);
 }
+
+// 옥타브를 무시하고 같은 pitch class 안에서의 cent 차이.
+// 음역대 측정 중 사용자가 한 옥타브 위/아래로 따라 부르는 자연스러운 케이스를
+// "맞은 음정"으로 인정하기 위한 판정 헬퍼.
+// 반환값은 -600..+600 범위로 정규화되며, 매치 여부는 |값| < 50 정도로 판단.
+export function octaveAgnosticCents(measuredHz: number, targetHz: number): number {
+  if (measuredHz <= 0 || targetHz <= 0) return Number.POSITIVE_INFINITY;
+  const raw = 1200 * Math.log2(measuredHz / targetHz);
+  let mod = ((raw % 1200) + 1200) % 1200;
+  if (mod > 600) mod -= 1200;
+  return mod;
+}

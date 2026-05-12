@@ -32,7 +32,7 @@ export default function MicTestScreen() {
 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, METERING_POLL_MS);
-  const { permissionGranted } = useTrainerMicSession(recorder);
+  const { permissionGranted, cleanupRecording } = useTrainerMicSession(recorder);
 
   const handleStart = async () => {
     if (!permissionGranted) {
@@ -49,7 +49,9 @@ export default function MicTestScreen() {
 
   const handleStop = async () => {
     try {
-      await recorder.stop();
+      // cleanupRecording이 stop과 임시 파일 삭제까지 한 번에 처리한다.
+      // (사용자가 "정지" 버튼을 누른 시점에 즉시 디스크에서 사라지도록)
+      await cleanupRecording();
     } catch (error) {
       console.warn('[mic-test] stop failed', error);
     }
