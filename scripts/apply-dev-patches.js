@@ -77,6 +77,72 @@ function patchTrackPlayerNullability(contents) {
   };
 }
 
+// New Architecture(Bridgeless) 환경에서 RNTP 4.1.x의 MusicService.emit() 가
+// reactNativeHost.reactInstanceManager.currentReactContext 만 참조해 null 을
+//돌려주는 버그를 우회한다. Bridgeless 에서는 reactInstanceManager 가 없고
+// reactHost 가 ReactContext 를 들고 있으므로 그쪽을 먼저 본다.
+//
+// 증상:
+//   - 알림센터/잠금화면의 재생/일시정지/이전/다음 버튼이 시각적으로는 눌리지만
+//     RemotePlay/RemotePause/RemoteNext/RemotePrevious 이벤트가 JS 로 오지 않음.
+//   - newArchEnabled: true 인 RN 0.74+ 환경에서만 발생.
+function patchTrackPlayerBridgelessEmit(contents) {
+  const oldEmit = `    @MainThread
+    private fun emit(event: String, data: Bundle? = null) {
+        reactNativeHost.reactInstanceManager.currentReactContext
+            ?.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            ?.emit(event, data?.let { Arguments.fromBundle(it) })
+    }
+
+    @MainThread
+    private fun emitList(event: String, data: List<Bundle> = emptyList()) {
+        val payload = Arguments.createArray()
+        data.forEach { payload.pushMap(Arguments.fromBundle(it)) }
+
+        reactNativeHost.reactInstanceManager.currentReactContext
+            ?.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            ?.emit(event, payload)
+    }`;
+
+  const newEmit = `    /* etmusic:bridgeless-emit */
+    @MainThread
+    private fun resolveReactContext(): com.facebook.react.bridge.ReactContext? {
+        // Bridgeless(New Architecture) 우선, 실패 시 legacy 경로 fallback.
+        return try {
+            reactHost?.currentReactContext
+        } catch (_: Throwable) {
+            null
+        } ?: try {
+            reactNativeHost.reactInstanceManager.currentReactContext
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    @MainThread
+    private fun emit(event: String, data: Bundle? = null) {
+        resolveReactContext()
+            ?.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            ?.emit(event, data?.let { Arguments.fromBundle(it) })
+    }
+
+    @MainThread
+    private fun emitList(event: String, data: List<Bundle> = emptyList()) {
+        val payload = Arguments.createArray()
+        data.forEach { payload.pushMap(Arguments.fromBundle(it)) }
+
+        resolveReactContext()
+            ?.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
+            ?.emit(event, payload)
+    }`;
+
+  if (contents.includes('/* etmusic:bridgeless-emit */')) {
+    return { contents, changed: false };
+  }
+
+  return replaceOnce(contents, oldEmit, newEmit, 'track-player bridgeless emit patch');
+}
+
 function patchTrackPlayerTurboModuleInterop(contents) {
   if (!contents.includes('= scope.launch {')) {
     return { contents, changed: false };
@@ -135,6 +201,13 @@ const patchers = [
         changed: nullability.changed || turboModule.changed,
       };
     },
+  },
+  {
+    file: path.join(
+      rootDir,
+      'node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt'
+    ),
+    apply: patchTrackPlayerBridgelessEmit,
   },
 ];
 

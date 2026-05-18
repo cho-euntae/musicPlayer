@@ -73,6 +73,7 @@
       ],
       "expo-web-browser",
       "./plugins/with-kotlin-jvm-target",
+      "./plugins/with-bundle-in-debug",
       [
         "expo-audio",
         {

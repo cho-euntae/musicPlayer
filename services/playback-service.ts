@@ -1,4 +1,4 @@
-import TrackPlayer, { Event, State } from 'react-native-track-player';
+import TrackPlayer, { Event } from 'react-native-track-player';
 
 async function skipToNextTrack() {
   try {
@@ -16,33 +16,40 @@ async function skipToPreviousTrack() {
   }
 }
 
-// 미디어 버튼(블루투스 헤드셋의 Play/Pause 토글, 차량 카오디오 등) 처리.
+// 알림센터/제어센터/잠금화면/CarPlay 등 시스템 미디어 컨트롤은
+// 현재 재생 상태에 맞춰 RemotePlay 또는 RemotePause를 "정확히" 보내준다.
+// 따라서 이벤트의 의도(play/pause)를 그대로 따르는 것이 표준 동작이며,
+// 그 어떤 race condition도 만들지 않는다.
 //
-// MediaSession은 보통 현재 상태에 따라 RemotePlay 또는 RemotePause 둘 중 하나만
-// 정확히 보내주지만, 헤드셋/스택 조합에 따라 항상 같은 이벤트(예: RemotePause만)
-// 가 발생하는 케이스가 있다. 그 경우 단순히 play()/pause()를 부르면 두 번째 탭부터
-// 동작이 멈춘 것처럼 보인다(첫 탭으로 일시정지된 뒤 다시 RemotePause가 와도 이미
-// 멈춰있어서 변화가 없음).
+// 과거 시도: 두 이벤트를 모두 "현재 state 기준 토글"로 묶었더니,
+//  - iOS Control Center에서 일시정지 버튼이 안 먹는 문제 (AVAudioSession이
+//    먼저 상태를 paused로 갱신해 토글이 다시 play를 호출)
+//  - Android 알림센터에서도 유사한 race로 버튼 1회 탭이 무시되는 케이스 발생
+// 가 있었기 때문에 이벤트별 단일 동작으로 복원한다.
 //
-// 두 이벤트 모두 "현재 상태를 보고 토글"하도록 통일하면 모든 BT 기기에서
-// 일관되게 동작한다.
-async function togglePlayPauseFromRemote() {
+// 일부 블루투스 헤드셋이 항상 같은 이벤트만 보내는 케이스는,
+// RNTP/OS 미디어 세션 레이어에서 이미 상태에 맞게 normalize 해주므로
+// 여기서 추가 토글을 하지 않아도 정상 동작한다.
+async function handleRemotePlay() {
   try {
-    const { state } = await TrackPlayer.getPlaybackState();
-    if (state === State.Playing || state === State.Buffering) {
-      await TrackPlayer.pause();
-    } else {
-      await TrackPlayer.play();
-    }
+    await TrackPlayer.play();
   } catch (error) {
-    console.warn('[TrackPlayer] togglePlayPauseFromRemote failed', error);
+    console.warn('[TrackPlayer] RemotePlay failed', error);
+  }
+}
+
+async function handleRemotePause() {
+  try {
+    await TrackPlayer.pause();
+  } catch (error) {
+    console.warn('[TrackPlayer] RemotePause failed', error);
   }
 }
 
 export default async function playbackService() {
-  TrackPlayer.addEventListener(Event.RemotePlay, togglePlayPauseFromRemote);
+  TrackPlayer.addEventListener(Event.RemotePlay, handleRemotePlay);
 
-  TrackPlayer.addEventListener(Event.RemotePause, togglePlayPauseFromRemote);
+  TrackPlayer.addEventListener(Event.RemotePause, handleRemotePause);
 
   TrackPlayer.addEventListener(Event.RemoteNext, skipToNextTrack);
 
