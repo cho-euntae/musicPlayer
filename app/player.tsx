@@ -16,9 +16,11 @@ import { useCurrentTrack, usePlayerStore } from '@/store/player-store';
 import { useAudioControl } from '@/context/audio-player-context';
 import { ProgressBar } from '@/components/player/progress-bar';
 import { Controls } from '@/components/player/controls';
+import { LyricsView } from '@/components/player/lyrics-view';
 import { OptionsSheetModal } from '@/components/options-sheet-modal';
 import { TrackArtwork } from '@/components/track-artwork';
 import { useArtworkColors } from '@/hooks/use-artwork-colors';
+import { useLyrics } from '@/hooks/use-lyrics';
 
 const SLEEP_TIMER_OPTIONS = [
   { value: 0, label: '타이머 끄기' },
@@ -107,6 +109,14 @@ export default function PlayerScreen() {
 
   const [sleepModalVisible, setSleepModalVisible] = useState(false);
   const [rateModalVisible, setRateModalVisible] = useState(false);
+  // 앨범 아트 ↔ 가사 토글. 곡이 바뀌면 다시 앨범 아트로 돌아간다.
+  const [showLyrics, setShowLyrics] = useState(false);
+
+  const lyricsState = useLyrics(currentTrack?.uri);
+
+  useEffect(() => {
+    setShowLyrics(false);
+  }, [currentTrack?.id]);
 
   // 타이머 남은 시간 실시간 갱신
   const [remaining, setRemaining] = useState<number>(
@@ -234,15 +244,24 @@ export default function PlayerScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* 앨범 아트 */}
-      <View style={styles.artworkWrap}>
-        <TrackArtwork
-          artwork={currentTrack.artwork}
-          title={currentTrack.title}
-          trackId={currentTrack.id}
-          size={ARTWORK_SIZE}
-          borderRadius={16}
-        />
+      {/* 앨범 아트 ↔ 가사 토글. 같은 영역을 차지해 토글 시 레이아웃 점프 없음. */}
+      <View style={[styles.artworkWrap, { height: ARTWORK_SIZE }]}>
+        {showLyrics ? (
+          <LyricsView
+            status={lyricsState.status}
+            lyrics={lyricsState.lyrics}
+            positionMs={position}
+            height={ARTWORK_SIZE}
+          />
+        ) : (
+          <TrackArtwork
+            artwork={currentTrack.artwork}
+            title={currentTrack.title}
+            trackId={currentTrack.id}
+            size={ARTWORK_SIZE}
+            borderRadius={16}
+          />
+        )}
       </View>
 
       {/* 트랙 정보 */}
@@ -253,11 +272,25 @@ export default function PlayerScreen() {
         </Text>
       </View>
 
-      {/* 보조 컨트롤: 큐 / 속도 / 타이머 */}
+      {/* 보조 컨트롤: 큐 / 가사 / 속도 / 타이머 */}
       <View style={styles.secondaryControls}>
         <TouchableOpacity style={styles.chipBtn} onPress={() => router.push('/queue')}>
           <Ionicons name="list-outline" size={16} color="#fff" />
           <Text style={styles.chipBtnText}>큐</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.chipBtn, showLyrics && styles.chipBtnActive]}
+          onPress={() => setShowLyrics((prev) => !prev)}
+        >
+          <Ionicons
+            name={showLyrics ? 'document-text' : 'document-text-outline'}
+            size={16}
+            color={showLyrics ? '#041107' : '#fff'}
+          />
+          <Text style={[styles.chipBtnText, showLyrics && styles.chipBtnTextActive]}>
+            가사
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -459,6 +492,7 @@ const styles = StyleSheet.create({
   },
   artworkWrap: {
     alignItems: 'center',
+    justifyContent: 'center',
     marginVertical: 8,
   },
   skipRow: {
